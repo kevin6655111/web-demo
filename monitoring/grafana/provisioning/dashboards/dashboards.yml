@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: patrol-demo
+    folder: 道路巡查 Demo
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

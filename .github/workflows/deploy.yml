@@ -1,0 +1,73 @@
+name: Deploy
+
+# 手動觸發或推 tag 才部署。
+# 不做「推 main 就自動上線」：這個系統的使用者是現場人員，
+# 上線時機要配合他們的作業時間，不是配合開發者的推送時間。
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 部署目標
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+jobs:
+  deploy:
+    name: 部署到 ${{ inputs.environment || 'production' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登入映像倉庫
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      - name: 建置並推送
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./Dockerfile
+          target: backend
+          push: true
+          # 同時打版本標籤與 latest：回滾時要指得出「回到哪一版」
+          tags: |
+            ${{ vars.REGISTRY }}/road-patrol-api:${{ github.ref_name }}
+            ${{ vars.REGISTRY }}/road-patrol-api:latest
+
+      - name: 部署到主機
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            cd ${{ vars.DEPLOY_PATH }}
+
+            # 先拉映像再切換：把下載時間排除在停機時間之外
+            docker compose pull
+            docker compose up -d --no-deps api tiles worker report-worker scheduler nginx
+
+            # 健康檢查沒過就自己回滾，不要留一個半死的站台等人發現
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:3008/api/health > /dev/null; then
+                echo "✅ 部署成功"
+                exit 0
+              fi
+              sleep 5
+            done
+
+            echo "❌ 健康檢查失敗，回滾"
+            docker compose rollback 2>/dev/null || docker compose up -d --no-deps api
+            exit 1

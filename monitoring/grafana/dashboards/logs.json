@@ -1,0 +1,340 @@
+{
+  "uid": "patrol-logs",
+  "title": "道路巡查 Demo — 日誌監控",
+  "tags": [
+    "patrol",
+    "logs"
+  ],
+  "timezone": "Asia/Taipei",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "container",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values(container)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "label": "服務"
+      },
+      {
+        "name": "search",
+        "type": "textbox",
+        "label": "關鍵字",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "錯誤數 (5xx / ERROR)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "description": "這段時間內出現的錯誤行數。持續上升代表有東西壞了，不是流量問題。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({container=~\"patrol-.*\"} |~ \"(?i)error\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "認證失敗 (401)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "description": "突然暴增通常是密碼噴灑攻擊，而不是使用者忘記密碼。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({container=~\"patrol-.*\"} |~ \"→ 401\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "權限不足 (403)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "description": "持續出現代表某個角色的權限設定與實際工作對不上。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({container=~\"patrol-.*\"} |~ \"→ 403\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "排程失敗",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "description": "排程沒有人盯著，失敗只會出現在這裡。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({container=\"patrol-scheduler\"} |~ \"❌ fail\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "各服務日誌量",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "description": "日誌量突然歸零，往往比錯誤變多更值得警覺 —— 那代表服務已經沒在跑了。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (count_over_time({container=~\"$container\"} [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "錯誤與警告趨勢",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum by (container) (count_over_time({container=~\"patrol-.*\"} |~ \"(?i)(error|warn)\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "案件建立 vs 冪等回放",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "description": "兩條線的比例就是上游重送率。重送多不一定是壞事，代表冪等層正在發揮作用。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({container=\"patrol-api\"} |~ \"已派工\" [$__auto]))",
+          "refId": "A",
+          "legendFormat": "新案件"
+        },
+        {
+          "expr": "sum(count_over_time({container=\"patrol-api\"} |~ \"回放冪等結果\" [$__auto]))",
+          "refId": "B",
+          "legendFormat": "重送被去重"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "佇列處理結果",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({container=~\"patrol-worker.*\"} |~ \"✅\" [$__auto]))",
+          "refId": "A",
+          "legendFormat": "完成"
+        },
+        {
+          "expr": "sum(count_over_time({container=~\"patrol-worker.*\"} |~ \"❌\" [$__auto]))",
+          "refId": "B",
+          "legendFormat": "失敗"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "即時日誌",
+      "type": "logs",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "description": "用上方的「關鍵字」變數過濾；例如輸入案件編號可以追出它經過了哪些服務。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{container=~\"$container\"} |~ \"$search\"",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

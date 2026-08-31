@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "rootDir": ".",
+
+    "target": "ES2021",
+    "module": "commonjs",
+    "outDir": "../dist/server",
+
+    // Nest / TypeORM 需要的設定
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "types": ["node"],
+
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@entities/*": ["auth/entities/*", "case-patrol/entities/*"],
+      "@decorators/*": ["auth/decorators/*"],
+      "@constants/*": ["auth/constants/*"],
+      "@app-types/*": ["http/types/*", "auth/types/*", "case-patrol/types/*", "env/types/*"]
+    }
+  },
+  "include": ["*.ts", "src/**/*.ts", "test/**/*.ts"]
+}

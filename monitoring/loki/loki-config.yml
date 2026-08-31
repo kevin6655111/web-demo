@@ -1,0 +1,45 @@
+# Loki：單機模式，資料存本機檔案系統
+#
+# Demo 的保留期只有 7 天：日誌的價值隨時間急遽下降，
+# 而磁碟不會 —— 沒有保留策略的日誌系統遲早把機器塞爆。
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: 168h # 7 天
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+  max_query_series: 5000
+  # 容器時鐘與 Loki 有落差時，太舊的行會被整批丟掉；放寬到 7 天避免補送的日誌消失
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  retention_enabled: true

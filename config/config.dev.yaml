@@ -1,0 +1,60 @@
+# 開發用設定：只放「產品行為」與「環境座標」，機密一律寫成 ${VAR} 由 .env 提供
+#
+# 注意：數值與布林欄位不要用 ${}，展開只作用在字串上，用了會讓型別變成字串。
+
+client: DEMO
+
+app:
+  name: 道路巡查 Demo
+  port:
+    http: 3008
+    ws: 3002
+  jwt:
+    secret: ${JWT_SECRET}
+    expiresInSec: 1800
+  password:
+    saltRounds: 10
+    minLength: 8
+
+database:
+  vendor: postgres
+  postgres:
+    host: localhost
+    port: 15432
+    name: patrol_demo
+    user: ${POSTGRES_USER}
+    pass: ${POSTGRES_PASSWORD}
+
+redis:
+  host: localhost
+  port: 16379
+
+storage:
+  backend: MINIO
+  minio:
+    endPoint: http://localhost:19000
+    # 本機開發直連 MinIO，簽名位址與內部位址相同
+    publicEndPoint: http://localhost:19000
+    region: us-east-1
+    bucket: patrol-demo
+    accessKey: ${MINIO_ROOT_USER}
+    secretKey: ${MINIO_ROOT_PASSWORD}
+
+task:
+  # 總開關；關掉就完全不註冊排程(本機開發常關掉，免得每分鐘洗版)
+  active: true
+
+  # 個別排程開關。cron 與逾時寫在 server/src/task/task-definitions.ts，
+  # 站台只決定「要不要跑」——時間點是工程判斷，不該各站各改。
+  schedule:
+    caseAutoCode: true # 案件編碼      07:00-22:59 每分鐘
+    databaseBackup: false # 資料庫備份    每日 23:50(Demo 只做備份前檢查)
+    lineNotify: true # 通知推播      每日 14:00、18:00
+    roadEvalStat: true # 道路評估統計  每日 23:00
+    dailyCheck: true # 上傳狀態檢查  08:45-23:45 每小時
+    patrolPointCov: true # 覆蓋率統計    每小時
+    addressGeocoder: true # 地址編碼      每日 20:00
+    pathUpdater: true # 報表檔案清理  每日 01:00
+    dashboardSync: true # 儀表板結算    每日 23:30
+    tilesWarmup: true # 圖層預熱      每日 07:00、08:00
+    partitionMaintain: true # 資料表維護    每月 1 日 03:00

@@ -1,0 +1,189 @@
+name: CI
+
+# 每次推送與 PR 都跑。分成四個 job 而不是一支長腳本，
+# 是為了讓失敗訊息直接指出「哪一層壞了」——
+# 型別錯誤與 E2E 失敗需要的處理方式完全不同。
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ─── 1. 靜態檢查：最快、最常失敗，放最前面 ──────────────────
+  lint:
+    name: 型別與格式
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: app/yarn.lock
+
+      - name: 安裝依賴
+        working-directory: app
+        run: yarn install --frozen-lockfile
+
+      - name: 後端型別檢查
+        working-directory: app
+        run: npx tsc --project server/tsconfig.json --noEmit
+
+      - name: 專案規則檢查
+        run: bash .claude/skills/patrol-dev/scripts/check.sh --quick
+
+  # ─── 2. 單元測試：不需要資料庫，跑得很快 ────────────────────
+  unit:
+    name: 單元測試
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: app/yarn.lock
+
+      - name: 安裝依賴
+        working-directory: app
+        run: yarn install --frozen-lockfile
+
+      - name: 前端測試
+        working-directory: app
+        run: yarn test
+
+      - name: 後端測試
+        working-directory: app
+        run: yarn test:e2e
+
+      - name: 前端建置
+        working-directory: app
+        run: yarn build
+
+  # ─── 3. 端到端：要真的把系統跑起來 ──────────────────────────
+  e2e:
+    name: 端到端測試
+    runs-on: ubuntu-latest
+    # 前兩層過了才跑：E2E 慢，沒必要在型別都錯的情況下等它
+    needs: [lint, unit]
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_USER: patrol
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: patrol_demo
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U patrol"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-retries 10
+
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: ci-minio
+          MINIO_ROOT_PASSWORD: ci-minio-password
+        ports: ['9000:9000']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: app/yarn.lock
+
+      - name: 安裝依賴
+        working-directory: app
+        run: yarn install --frozen-lockfile
+
+      - name: 準備設定檔
+        run: |
+          cp .env.example .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-password/' .env
+          sed -i 's/^MINIO_ROOT_USER=.*/MINIO_ROOT_USER=ci-minio/' .env
+          sed -i 's/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=ci-minio-password/' .env
+          sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env
+
+      - name: 建表與示範資料
+        working-directory: app
+        run: yarn seed
+
+      - name: 安裝瀏覽器
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+
+      - name: 啟動服務
+        working-directory: app
+        run: |
+          # 背景啟動；只有 api 跑 migration，其餘行程要關掉避免搶著改 schema
+          nohup yarn server > /tmp/api.log 2>&1 &
+          RUN_MIGRATIONS=false nohup yarn tiles > /tmp/tiles.log 2>&1 &
+          RUN_MIGRATIONS=false nohup yarn worker > /tmp/worker.log 2>&1 &
+          RUN_MIGRATIONS=false nohup yarn report-worker > /tmp/report.log 2>&1 &
+          nohup yarn web > /tmp/web.log 2>&1 &
+
+          # 等到真的起來，而不是睡固定秒數 —— CI 機器的速度每次都不一樣
+          npx wait-on -t 120000 http://localhost:3008/api/health http://localhost:3010/api/health http://localhost:3005
+
+      - name: 端到端測試
+        working-directory: app
+        run: yarn test:e2e:browser
+
+      - name: 收集失敗證據
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            app/e2e-results/
+            app/playwright-report/
+            /tmp/*.log
+          retention-days: 7
+
+  # ─── 4. 映像檔：確認部署路徑沒壞 ────────────────────────────
+  docker:
+    name: 映像檔建置
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 建置後端映像
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./Dockerfile
+          target: backend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 建置前端映像
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./Dockerfile
+          target: frontend-server
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

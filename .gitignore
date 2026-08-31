@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+logs/
+*.log
+
+# 機密：不進版控
+.env
+
+# 產出物
+app/dist/
+app/build/
+app/docs/openapi.json

@@ -1,0 +1,123 @@
+/*
+ * 日夜共用同一份樣式，差別集中在這幾個變數。
+ * 由 ThemeContext 在 <html> 上掛 data-theme，CSS 這邊只認那個屬性 ——
+ * 兩邊各自判斷的話，JS 已經切好了而 CSS 還停在上一個狀態。
+ */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --app-bg: #0b1220;
+  --app-glow-1: rgba(56, 189, 248, 0.12);
+  --app-glow-2: rgba(167, 139, 250, 0.1);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.28);
+  --popup-bg: #111928;
+  --popup-fg: #e2e8f0;
+  --popup-border: rgba(148, 163, 184, 0.2);
+  /* 淺色底圖套濾鏡融進深色介面 */
+  --tile-filter: brightness(0.72) saturate(0.85) hue-rotate(175deg) invert(0.92);
+  --tile-filter-dark-basemap: brightness(0.92) saturate(1);
+  --sidebar-bg: none;
+
+  /*
+   * 狀態色。
+   *
+   * 深底用的是高明度的粉彩色 —— 它們在深藍上很亮眼，
+   * 但放到白底上對比度只有 2:1 左右，等於看不清楚。
+   * 所以兩種佈景各給一組，而不是共用一份「中間值」——
+   * 中間值的結果是兩邊都不好看。
+   *
+   * 用 CSS 變數而不是 JS 常數：顏色出現在 39 個地方，
+   * 其中包含 Leaflet 直接吐出的 HTML 字串。走變數的話，
+   * 切換佈景不需要任何一個呼叫點知道這件事。
+   */
+  --c-neutral: #64748b;
+  --c-info: #38bdf8;
+  --c-success: #34d399;
+  --c-warning: #fbbf24;
+  --c-error: #f87171;
+  --c-purple: #a78bfa;
+  --c-muted: #475569;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --app-bg: #eef1f7;
+  /* 日間的光暈要比夜間更淡但範圍更大：淺底上稍微濃一點就變成髒污 */
+  --app-glow-1: rgba(2, 132, 199, 0.1);
+  --app-glow-2: rgba(124, 58, 237, 0.07);
+  --sidebar-bg: linear-gradient(180deg, #ffffff, #f4f7fc);
+  --scrollbar-thumb: rgba(15, 23, 42, 0.22);
+  --popup-bg: #ffffff;
+  --popup-fg: #0f172a;
+  --popup-border: rgba(15, 23, 42, 0.12);
+  /* 日間不做反轉：底圖本來就是淺色的，套濾鏡等於把它變成夜間圖 */
+  --tile-filter: none;
+  --tile-filter-dark-basemap: none;
+
+  /* 白底要的是「深一階」的同色系，對比才夠 */
+  --c-neutral: #64748b;
+  --c-info: #0284c7;
+  --c-success: #059669;
+  --c-warning: #b45309;
+  --c-error: #dc2626;
+  --c-purple: #7c3aed;
+  --c-muted: #94a3b8;
+}
+
+body {
+  margin: 0;
+  /* 兩道極淡的徑向光暈：整片純色在大螢幕上會顯得很平 */
+  background:
+    radial-gradient(1200px 600px at 12% -10%, var(--app-glow-1), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, var(--app-glow-2), transparent 55%),
+    var(--app-bg);
+  background-attachment: fixed;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 影像與深色底圖本來就深，套反轉會糊成一片，所以另外給一組 */
+.leaflet-tile-pane {
+  filter: var(--tile-filter);
+}
+.leaflet-tile-pane:has(.basemap-dark) {
+  filter: var(--tile-filter-dark-basemap);
+}
+.leaflet-container {
+  background: var(--app-bg);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--popup-bg);
+  color: var(--popup-fg);
+  border: 1px solid var(--popup-border);
+}
+
+/* 新案件進來時，地圖上的點閃一下 */
+@keyframes pulse-ring {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { opacity: 0; }
+}
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: pulse-ring 1.8s ease-out infinite;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot::after { animation: none; }
+}

@@ -1,0 +1,179 @@
+# API 介接
+
+互動式文件：http://localhost:13008/api-docs（Swagger UI，可直接試打）
+
+## 回應格式
+
+所有端點回傳同一個信封：
+
+```json
+{ "status": true, "code": 200, "message": "", "data": {} }
+```
+
+`status` 為 `false` 代表「查無資料」或業務層警告，HTTP 狀態碼仍可能是 200。
+真正的錯誤以對應的 HTTP 狀態碼回傳，且沒有 `data`。
+
+前端因此只需要寫一次錯誤處理。
+
+## 認證
+
+登入後同時回傳 token 與寫入 httpOnly cookie：
+
+```bash
+curl -X POST http://localhost:13008/api/user/authenticate \
+  -H 'Content-Type: application/json' \
+  -d '{"COMPANY_KEY":"DEMO","ACCOUNT":"admin","PASSWORD":"Demo1234"}'
+```
+
+- **瀏覽器**用 cookie（XSS 偷不走）
+- **App 與對接系統**用 `Authorization: Bearer <token>`
+
+Token 有效 30 分鐘，可用 `PUT /auth/refresh-token` 在有效期內續期。
+給第三方嵌入用 `POST /auth/temp-token`（只帶唯讀權限、5 分鐘、不寫 cookie）。
+
+**防爆破**：同一帳號連續失敗 5 次鎖定 15 分鐘；帳號不存在與密碼錯誤回傳相同訊息且耗時相近。
+
+## 車機端整合
+
+### 上傳案件
+
+```bash
+curl -X POST http://localhost:13008/api/patrol/case \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: TXG-20260829-000123" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "DT_RECORD": "2026-08-29T09:12:00.123+08:00",
+    "PRJ_ID": "DEMO01",
+    "CAR": "DEMO-001",
+    "LNG": 120.6478, "LAT": 24.1636, "ALTITUDE": 92.4,
+    "CRACK_TYPE": "Potholes", "DEGREE": "A", "CRACK_ID": 1,
+    "LENGTH": 0.7, "WIDTH": 0.5, "AREA": 0.35, "DEPTH": 8,
+    "IMG": "demo/case/TXG-20260829-000123.jpg",
+    "IMG_DETECT": "demo/case/TXG-20260829-000123_detect.jpg",
+    "SERIAL_NO": 123
+  }'
+```
+
+**重送安全，三層**：
+
+1. HTTP 的 `Idempotency-Key` + Redis `SET NX`
+2. 佇列的 `jobId`
+3. 資料庫的 `(DT_RECORD, IMG_DETECT, CRACK_ID)` 唯一鍵
+
+第三層是唯一一道不依賴應用程式還活著的防線。
+重複遞送回傳既有案件的 `ID` 並帶 `DUPLICATED: true`，HTTP 狀態仍是成功 ——
+車機在隧道裡收不到回應就重送，這是常態，不該讓它為此寫特殊處理。
+
+**地址是非同步補的**：剛建立的案件沒有地址列，由 worker 逆地理編碼後補上，
+排程再兜底掃一次漏掉的。地址補不到不該讓案件進不來。
+
+**破壞類型的代碼沿用判讀模型的輸出**（`Potholes`、`Cracking`、`Alligator_Cracking`…，
+大小寫照抄）。在 API 這一層「整理」成大寫，代價是每次比對都要先轉換，而漏轉的地方會安靜地壞掉。
+
+### 上傳軌跡
+
+```bash
+curl -X POST http://localhost:13008/api/fleet/track \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"DEVICE_ID":"DEV-0001","LNG":120.6478,"LAT":24.1636,
+       "RECORDED_AT":"2026-08-29T09:12:00+08:00","SPEED_KPH":32.5,"GPS_HDOP":0.8}'
+```
+
+車機用 `DEVICE_ID` 認自己而不是車牌 —— 車牌會換，車機不會。
+
+### 上傳派工單照片
+
+```bash
+curl -X POST http://localhost:13008/api/workorder/image \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "ID=3" \
+  -F "IMG_BEFORE=@before.jpg" \
+  -F "IMG_AFTER=@after.jpg"
+```
+
+`multipart/form-data`，**欄位名就是照片類型**，一次可傳多種。
+
+- 同一類型只留一張：重傳是覆寫而不是長出第二筆 —— 現場重拍是常態，
+  而驗收要的是「這個階段的照片」，不是同階段的二十張。要留全部就用 `_ZIP` 類型。
+- 單檔 20MB；一般類型只收 jpg/png/heic/webp，`_ZIP` 類型只收 zip。
+  副檔名與 MIME 都檢查 —— 兩者都能偽造，但同時偽造比較難。
+- `GET /workorder/:ID/image` 回傳已上傳的（含 5 分鐘有效的下載網址）、
+  該類型要求的、以及**還缺哪些**。
+- 缺必要照片時 `PUT /workorder/status` 標記完工會回 400。
+
+## 端點分類
+
+| 分類 | 主要端點 |
+|---|---|
+| Auth | 登入、續期、臨時 token、帳號管理 |
+| Role | 角色、權限總表 |
+| Core | 代碼表、公告、圖形驗證碼 |
+| Orgstruct | 使用者導覽選單 |
+| Company | 下層單位清單／建立／更新、授權開通與收回、可開通範圍 |
+| Project | 標案查詢／詳情／新增／狀態、關聯維護（公司／車輛／工務段轄區）、工務段與行政區清單 |
+| Case-Patrol | 案件新增、查詢（20+ 條件）、詳情、狀態變更、批次狀態、多維度統計、附近查詢 |
+| History | 版本時間軸、指定版本、版本比較、還原、稽核查詢（四種實體共用） |
+| Work-Order | 派工、更新、狀態流轉、**照片上傳／清單／刪除**、查詢 |
+| Fleet | 車輛、軌跡上傳與查詢、軌跡統計 |
+| Road-Eval | 路段清單、圖層、等級分布、重算 |
+| Patrol-Setting | 巡查計畫、路線圖層、覆蓋率 |
+| Survey | 調查委託單、調查點 |
+| Report | 報表產製、狀態、下載、刪除 |
+| Dashboard | 儀表板總覽 |
+| Tiles | GeoJSON 圖層、向量圖磚 |
+| Geo | 行政區界線、地址自動完成 |
+| Realtime | 線上人員、車輛位置、案件討論 |
+| Support | 客服對話 |
+| Task | 排程狀態、手動觸發 |
+
+## 圖層：GeoJSON vs 向量圖磚
+
+| | GeoJSON | 向量圖磚 |
+|---|---|---|
+| 端點 | `GET /tiles/case` | `GET /tiles/case/{z}/{x}/{y}` |
+| 回傳 | FeatureCollection | `application/x-protobuf` |
+| 大小 | 全區約 490 KB | 單格約 42 KB |
+| 適用 | 需要在前端過濾、統計 | 案件量上千、地圖頻繁平移 |
+
+圖磚由 PostGIS 直接產生（`ST_AsMVT`），空圖磚回 204 而不是空的 200 ——
+這樣地圖函式庫才知道這一格沒東西可畫。
+
+## WebSocket
+
+```
+ws://localhost:13008/ws?token=<JWT>
+```
+
+連線時就驗 token（WebSocket 沒有「每個請求帶憑證」的機制，握手是唯一能擋人的時機），
+並依公司分房 —— 多租戶下不會把 A 公司的資料推給 B 公司。
+
+**前端 → 後端**
+
+| 訊息 | 用途 |
+|---|---|
+| `subscribe` / `unsubscribe` | 訂閱頻道 |
+| `ping` | 心跳（每 20 秒） |
+| `case.enter` / `case.leave` | 進出案件討論串 |
+| `chat.send` | 送出討論訊息 |
+| `location.report` | 位置回報 |
+| `lock.acquire` / `lock.release` | 編輯鎖 |
+
+**後端 → 前端**
+
+`case.created`、`case.enriched`、`workorder.changed`、`report.done`、
+`chat.message`、`chat.history`、`fleet.moved`、`presence.joined/left`、
+`lock.taken/released`、`support.message`
+
+頻道：`case` `workorder` `report` `task` `presence` `fleet` `lock` `support`
+
+## 錯誤碼
+
+| 碼 | 意義 |
+|---|---|
+| 400 | 參數錯誤：欄位缺漏、型別錯誤，或傳了 DTO 沒定義的欄位 |
+| 401 | 未認證：token 缺漏、格式錯誤或已失效 |
+| 403 | 權限不足 |
+| 404 | 找不到資源，或資源不屬於你的公司 |
+| 409 | 衝突：冪等鍵用於不同內容、重複派工、狀態不允許 |
+| 429 | 流量限制 |

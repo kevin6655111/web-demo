@@ -1,0 +1,54 @@
+# Promtail：收集 Docker 容器的 stdout，貼上標籤送進 Loki
+#
+# 標籤要少而穩定：Loki 的每個標籤組合都是一條獨立的資料流，
+# 把 request_id 或使用者放進標籤會產生數以萬計的流(cardinality 爆炸)，
+# 那些欄位應該留在日誌內容裡用查詢過濾，而不是當標籤。
+server:
+  http_listen_port: 9080
+  log_level: warn
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+
+    relabel_configs:
+      # 只收這個 Demo 的容器，不要把整台機器上其他專案的日誌也吸進來
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(patrol-.*)'
+        action: keep
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+
+    pipeline_stages:
+      # NestJS 的彩色輸出在 Loki 裡是一堆亂碼，先去掉 ANSI escape
+      - replace:
+          expression: '(\x1b\[[0-9;]*m)'
+          replace: ''
+
+      # 後端的稽核與排程日誌本來就是 JSON，抽出欄位讓 Grafana 能直接篩
+      - json:
+          expressions:
+            level: level
+            task: task
+            action: action
+            outcome: outcome
+            ms: ms
+          drop_malformed: false
+
+      # level 當標籤(值域小、穩定)；其餘留在內容裡
+      - labels:
+          level:
+
+      - output:
+          source: output
