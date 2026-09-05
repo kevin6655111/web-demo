@@ -23,15 +23,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
-          cache-dependency-path: app/yarn.lock
+          cache-dependency-path: yarn.lock
 
       - name: 安裝依賴
-        working-directory: app
         run: yarn install --frozen-lockfile
 
       - name: 後端型別檢查
-        working-directory: app
-        run: npx tsc --project server/tsconfig.json --noEmit
+        run: yarn typecheck
 
       - name: 專案規則檢查
         run: bash .claude/skills/patrol-dev/scripts/check.sh --quick
@@ -47,22 +45,18 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
-          cache-dependency-path: app/yarn.lock
+          cache-dependency-path: yarn.lock
 
       - name: 安裝依賴
-        working-directory: app
         run: yarn install --frozen-lockfile
 
       - name: 前端測試
-        working-directory: app
         run: yarn test
 
       - name: 後端測試
-        working-directory: app
-        run: yarn test:e2e
+        run: yarn test:api
 
       - name: 前端建置
-        working-directory: app
         run: yarn build
 
   # ─── 3. 端到端：要真的把系統跑起來 ──────────────────────────
@@ -108,10 +102,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
-          cache-dependency-path: app/yarn.lock
+          cache-dependency-path: yarn.lock
 
       - name: 安裝依賴
-        working-directory: app
         run: yarn install --frozen-lockfile
 
       - name: 準備設定檔
@@ -123,18 +116,15 @@ jobs:
           sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env
 
       - name: 建表與示範資料
-        working-directory: app
         run: yarn seed
 
       - name: 安裝瀏覽器
-        working-directory: app
         run: npx playwright install --with-deps chromium
 
       - name: 啟動服務
-        working-directory: app
         run: |
           # 背景啟動；只有 api 跑 migration，其餘行程要關掉避免搶著改 schema
-          nohup yarn server > /tmp/api.log 2>&1 &
+          nohup yarn api > /tmp/api.log 2>&1 &
           RUN_MIGRATIONS=false nohup yarn tiles > /tmp/tiles.log 2>&1 &
           RUN_MIGRATIONS=false nohup yarn worker > /tmp/worker.log 2>&1 &
           RUN_MIGRATIONS=false nohup yarn report-worker > /tmp/report.log 2>&1 &
@@ -144,8 +134,7 @@ jobs:
           npx wait-on -t 120000 http://localhost:3008/api/health http://localhost:3010/api/health http://localhost:3005
 
       - name: 端到端測試
-        working-directory: app
-        run: yarn test:e2e:browser
+        run: yarn test:e2e
 
       - name: 收集失敗證據
         if: failure()
@@ -153,8 +142,8 @@ jobs:
         with:
           name: e2e-artifacts
           path: |
-            app/e2e-results/
-            app/playwright-report/
+            e2e/results/
+            e2e/playwright-report/
             /tmp/*.log
           retention-days: 7
 
@@ -171,7 +160,7 @@ jobs:
       - name: 建置後端映像
         uses: docker/build-push-action@v6
         with:
-          context: ./app
+          context: .
           file: ./Dockerfile
           target: backend
           push: false
@@ -181,7 +170,7 @@ jobs:
       - name: 建置前端映像
         uses: docker/build-push-action@v6
         with:
-          context: ./app
+          context: .
           file: ./Dockerfile
           target: frontend-server
           push: false

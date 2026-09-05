@@ -1,0 +1,123 @@
+name: Release (離線包)
+
+# 離線部署包：目標機器常常連不到外網（廠區、機房、標案指定的內網），
+# 所以「到現場再 docker pull」不是可行的部署方式 ——
+# 這條流程把映像檔本身連同設定檔打成一個 tar，帶隨身碟就能裝。
+#
+# 只在 tag 或手動觸發時跑：一個離線包一兩 GB，每次推送都產一個
+# 會在幾天內把 artifact 空間吃光。
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本號（不填就用日期時間）
+        required: false
+        type: string
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ─── 先驗證再打包 ───────────────────────────────────────────
+  #
+  # 打包本身不會發現任何問題 —— 混淆後的程式碼壞掉時，
+  # 只有在對方的機器上啟動失敗才看得出來，而那時已經來不及了。
+  verify:
+    name: 打包前驗證
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: 安裝依賴
+        run: yarn install --frozen-lockfile
+
+      - name: 後端型別檢查
+        run: yarn typecheck
+
+      - name: 前端測試
+        run: yarn test
+
+      - name: 後端測試
+        run: yarn test:api
+
+      # 混淆會改寫每一個 .js —— 改壞了只有在啟動時才看得出來，
+      # 所以這裡真的把混淆後的後端跑起來問一次健康檢查
+      - name: 混淆後的後端能否啟動
+        run: |
+          yarn build:api:prod
+
+          cp ../.env.example ../.env
+          sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" ../.env
+
+          # 不連資料庫也要能起到「開始監聽」為止；連不上 DB 的錯誤與
+          # 混淆壞掉的錯誤長得完全不一樣，分得出來
+          RUN_MIGRATIONS=false PORT=3018 nohup node -r ./apps/api/register.js apps/api/dist/main/api.js > /tmp/protected.log 2>&1 &
+          npx wait-on -t 90000 http://localhost:3018/api/health
+
+          echo "✅ 混淆後的後端啟動正常"
+
+      - name: 啟動失敗時附上日誌
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protected-boot-log
+          path: /tmp/protected.log
+          retention-days: 7
+
+  # ─── 打包 ───────────────────────────────────────────────────
+  bundle:
+    name: 產生離線包
+    runs-on: ubuntu-latest
+    needs: [verify]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 決定版本號
+        id: ver
+        run: |
+          VERSION="${{ inputs.version }}"
+          [ -z "$VERSION" ] && VERSION="${GITHUB_REF_NAME}"
+          [ "$VERSION" = "main" ] && VERSION="$(date +%Y%m%d-%H%M)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: 打包
+        run: bash scripts/pack-offline.sh "${{ steps.ver.outputs.version }}"
+
+      - name: 上傳
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-patrol-${{ steps.ver.outputs.version }}-offline
+          path: dist-offline/*.tar.gz
+          # 離線包很大，留太久會把空間吃光；正式版本應該另外歸檔到檔案伺服器
+          retention-days: 14
+
+      # tag 觸發時順手掛到 Release 上：交付時給對方一個下載連結，
+      # 比請他去翻 Actions 的 artifact 容易得多
+      - name: 附到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-offline/*.tar.gz
+          body: |
+            ## 離線部署包
+
+            目標機器需已安裝 Docker 24+ 與 docker compose v2，不需要外網。
+
+            ```bash
+            tar -xzf road-patrol-${{ steps.ver.outputs.version }}-offline.tar.gz
+            cd road-patrol-${{ steps.ver.outputs.version }}
+            cp .env.example .env && vi .env   # 一定要改掉所有 change-me
+            bash install.sh
+            ```
+
+            後端已做原始碼保護（混淆），並在打包前驗證過可以正常啟動。

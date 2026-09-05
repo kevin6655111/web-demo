@@ -40,7 +40,7 @@ docker compose up -d $build_opt $services
 
 if [ "$do_seed" = true ]; then
     echo "🌱 灌入示範資料"
-    yarn --cwd app seed
+    yarn seed
 fi
 
 echo

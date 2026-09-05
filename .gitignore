@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-offline/
 build/
 logs/
 *.log
@@ -8,6 +9,15 @@ logs/
 .env
 
 # 產出物
-app/dist/
-app/build/
-app/docs/openapi.json
+apps/api/dist/
+apps/web/build/
+packages/shared/dist/
+docs/openapi.json
+
+# Playwright 的截圖／影片／trace：失敗時才產生，不進版控
+e2e/results/
+e2e/playwright-report/
+e2e/specs/.auth/
+
+# 隱私掃描要比對的真實識別字：列在公開專案裡等於自己說出客戶是誰
+.claude/private-terms.txt

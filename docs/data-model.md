@@ -17,7 +17,12 @@ companies ──┬── users ──── roles
             │                                     │                  ├── patrol_case_statuses
             │                                     │                  └── case_messages
             │                                     │
+            │                                     ├── maintenances ──┬── maintenance_statuses
+            │                                     │                  ├── maintenance_repairs
+            │                                     │                  └── maintenance_images
+            │                                     │
             │                                     └── work_orders ──┬── work_order_statuses
+            │                                                       ├── work_order_users
             │                                                       ├── work_order_images
             │                                                       └── work_order_improvements
             │
@@ -27,7 +32,7 @@ companies ──┬── users ──── roles
             ├── announcements
             └── support_threads ── support_messages
 
-case_histories             (版本化歷程，四種實體共用一張)
+case_histories             (版本化歷程，五種實體共用一張)
 modules ── features        (導覽定義，不掛公司)
 ```
 
@@ -64,7 +69,7 @@ modules ── features        (導覽定義，不掛公司)
 
 ## 三個結構性的決定
 
-### 一、案件與派工單分表
+### 一、三種單據都分表
 
 主表只放「來源寫進來就不再改」的內容，人會改的與非同步補的各自一張。
 
@@ -78,9 +83,18 @@ modules ── features        (導覽定義，不掛公司)
 而且地址還沒補到時，案件會因為欄位不完整而卡在寫入這一步 ——
 地址是「補得到就好」的東西，不該擋住案件進來。
 
-派工單同理：`work_orders` / `work_order_statuses` / `work_order_images` / `work_order_improvements`。
+派工單同理：`work_orders` / `work_order_statuses` / `work_order_users` / `work_order_images` / `work_order_improvements`。
 取樣資訊獨立一張是因為只有 `PB`（路基改善）用得到，
 放主表的話其他三種類型會多三個永遠是空的欄位。
+
+巡查單也一樣：`maintenances` / `maintenance_statuses` / `maintenance_repairs` / `maintenance_images`。
+回填內容（材料、數量、回填尺寸）只有 `RB`（巡修，當場修掉的）有 ——
+由 `RB` 改回 `RA` 時那一列整列刪掉，留著會變成
+「一張沒有修過的單上寫著用了幾包冷瀝青」。
+
+**施工人員是關聯表而不是欄位**：一個坑洞常是兩三個人一起去。
+把 id 逗號串在一個欄位裡，「這個人這個月被派了幾張單」就變成字串比對，
+而那是報表每個月都要跑一次的查詢。
 
 ### 二、標案關聯用關聯表而不是欄位
 
@@ -95,10 +109,13 @@ modules ── features        (導覽定義，不掛公司)
 轄區掛在「標案-工務段」之下而不是工務段本身：
 同一個工務段在不同標案負責的行政區可以不同。
 
-### 三、歷程一張表、四種實體共用
+### 三、歷程一張表、五種實體共用
 
 主鍵 `(case_type, case_id, version)`。稽核問的是「這段期間誰改了什麼」——
-跨實體的查詢比較常見，分四張表的話每次都要 union。
+跨實體的查詢比較常見，分五張表的話每次都要 union。
+
+歷程還有第二個用途：**復原靠它決定要回到哪個狀態**。
+所以「別的模組改了我的狀態」也要留一筆 —— 見架構說明的〈版本化歷程〉。
 
 ## 主要資料表
 
@@ -107,7 +124,12 @@ modules ── features        (導覽定義，不掛公司)
 | `patrol_cases` | 破壞案件主表 | `(dt_record, img_detect, crack_id)` 唯一、`external_id` 唯一、`geom` GiST |
 | `patrol_case_addresses` | 案件地址（非同步補） | `case_id` 唯一；`(county, district)`、`road` 索引 |
 | `patrol_case_statuses` | 二篩／編輯／修繕三組狀態 | `case_id` 唯一；`status`、`need_repair` 各自索引 |
-| `work_orders` | 派工單 | `case_num` 唯一、`case_patrol_id` 唯一（一案一單） |
+| `maintenances` | 巡查單／巡修單主表 | `case_num` 唯一；`(project_id, pothole_number)` **部分**唯一（只管有編號的）、`geom` GiST |
+| `maintenance_statuses` | 巡查單狀態 | `maintenance_id` 唯一；`status` 索引 |
+| `maintenance_repairs` | 巡修回填內容（RB 才有） | `maintenance_id` 唯一；改回 RA 時整列刪除 |
+| `maintenance_images` | 巡查照片 | `(maintenance_id, img_type)` 唯一 |
+| `work_orders` | 派工單 | `case_num` 唯一、`case_patrol_id` 唯一、`maintenance_id` **部分**唯一（一來源一單）|
+| `work_order_users` | 派工單↔施工人員 | `(work_order_id, user_id)` 唯一；一張單可多人 |
 | `work_order_images` | 施工照片 | `(work_order_id, img_type)` 唯一 —— 同類型只留一張 |
 | `case_histories` | 版本化歷程 | 主鍵 `(case_type, case_id, version)`；只增不改 |
 | `projects` | 標案 | `prj_id` 唯一；`(state, start_date, end_date)` 索引 |
@@ -131,6 +153,27 @@ HTTP  Idempotency-Key + Redis SET NX     擋掉「同一次請求」的重送
 
 最後一層是唯一一道不依賴應用程式還活著的防線。
 車機在隧道裡送出案件、收不到回應就重送 —— 這是常態而不是例外。
+
+### 部分唯一索引
+
+坑洞編號在同一個標案內不可重號（業主的坑洞管制表用它對帳），
+但非坑洞的巡查單這個欄位是 `NULL`。一般的唯一索引會讓所有沒有編號的列互相撞，
+所以用 `WHERE pothole_number IS NOT NULL` 的部分索引。
+
+派工單的 `maintenance_id` 同理：沒有來源的 `PA`/`PB` 都是 `NULL`。
+
+## 單據狀態
+
+| 單據 | 狀態 |
+|---|---|
+| 巡查單 `maintenance_statuses.status` | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工 |
+| 派工單 `work_order_statuses.status` | -1 已刪除 / 0 待處理 / 1 施工中 / 2 已回報 / 3 已完工 |
+
+**刪除是狀態而不是真的刪列**：巡查單可能已經被派工單引用，真刪會讓派工單變成孤兒；
+而「刪掉的單救得回來」本身就是需求 —— 現場誤刪是常態。
+
+巡查單與案件用同一套語意（待確認 → 觀察中 → 已派工），
+因為兩者都是「發現了什麼」；派工單走的才是施工流程。
 
 ## 三組狀態的意思
 
@@ -157,6 +200,7 @@ HTTP  Idempotency-Key + Redis SET NX     擋掉「同一次請求」的重送
 | 表 | 型別 | 為什麼 |
 |---|---|---|
 | `patrol_cases.geom` | Point | 案件是點 |
+| `maintenances.geom` | Point | 巡查記的是一個破壞點 |
 | `work_orders.start_geom` / `end_geom` | Point | 施工有起訖點 |
 | `vehicle_tracks.geom` | Point | 軌跡是一連串點 |
 | `road_segments.geom` | LineString | 決策的單位是一段路 |

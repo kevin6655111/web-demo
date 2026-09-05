@@ -24,6 +24,77 @@ bash clean.sh --purge   # 額外移除映像檔
 bash clean.sh --wipe    # 連同資料一起刪除(會二次確認)
 ```
 
+## 離線部署包
+
+目標機器常常連不到外網（廠區、機房、標案指定的內網），
+「到現場再 `docker pull`」不是可行的部署方式。
+
+```bash
+bash scripts/pack-offline.sh v2.0.0
+# → dist-offline/road-patrol-v2.0.0-offline.tar.gz
+```
+
+打包的是**映像檔本身**而不是原始碼：對方拿到的是可以跑的東西，
+不是一份要在他機器上重新建置、而建置環境不一定一樣的專案。
+
+包含：
+
+| 內容 | 說明 |
+|---|---|
+| `images.tar.gz` | 全部映像存成**一個** tar —— 共用的 layer 只存一份，分開存會把 `node:22-alpine` 複製好幾遍 |
+| `docker-compose.yml` | 自建服務的 `build:` 已改寫成 `image:`（離線機器沒有原始碼可建）|
+| `config/` `nginx/` `monitoring/` | 設定檔 |
+| `.env.example` | **`.env` 不進去** —— 那是每個站台各自的機密，帶著別人的 `.env` 上線是最容易發生的事故 |
+| `install.sh` | 檢查環境 → 驗 SHA256 → `docker load` → `up -d` → 等健康檢查 |
+| `SHA256SUMS` | 隨身碟拷貝壞掉是真的會發生的事，而壞掉的映像在 `docker load` 時只會噴一個看不懂的錯 |
+
+目標機器上：
+
+```bash
+tar -xzf road-patrol-v2.0.0-offline.tar.gz
+cd road-patrol-v2.0.0
+cp .env.example .env && vi .env    # install.sh 會擋住還留著 change-me 的 .env
+bash install.sh [--seed]
+```
+
+## 後端不以明碼交付
+
+`tsc` 的產出是可讀的 JavaScript。交付出去等於把商業邏輯、查詢條件與資料表結構
+一起交出去，所以建置時多一步混淆（`app/scripts/protect.js`）。
+
+```bash
+yarn build:api:prod                          # 建 shared + 建 api + 混淆
+PROTECT_SOURCE=false yarn build:api:prod     # 跳過(除錯用)
+docker build --build-arg PROTECT_SOURCE=false ...   # 除錯用的映像
+```
+
+保護會刪掉 `packages/shared/dist` 的 `.d.ts`，下一次 `tsc` 就找不到共用套件的型別 ——
+所以 `build:api:prod` 自己先重建一次 shared。手動跑過 `node scripts/protect.js` 之後，
+編輯器要等下一次 `yarn build:shared` 才恢復。
+
+Dockerfile 的 `backend-build` 階段預設會做。
+
+**`packages/shared` 也在保護範圍內**：領域語彙搬過去之後，資料表結構、狀態機、
+代碼表全都在那裡 —— 只混淆 `apps/api` 等於把最值錢的那一份原封不動附在旁邊。
+`.d.ts` 也會一併刪除（它把每個常數的字面值寫得清清楚楚）。
+
+保護後全部產出裡只剩 3 處明碼的領域字串，都是兩個字的詞
+（混淆器對過短的字串不搬進字串表）—— 那個長度的字串本來就藏不住什麼。
+
+**這不是加密，是提高抄襲成本。** 任何在對方機器上執行的程式，
+對方終究拿得到它的行為；真正不能外流的東西不該放在交付的映像檔裡。
+
+三個刻意的取捨：
+
+- 不開 `controlFlowFlattening` / `deadCodeInjection` —— 膨脹三到五倍且啟動變慢，
+  而 NestJS 每次啟動都要跑完整個 DI 圖。
+- **保留類別名稱** —— DI、Swagger schema、TypeORM 實體名都靠它；
+  改掉之後例外堆疊會變成亂碼，出事沒有人查得下去。
+- 刪掉 source map —— 留著等於把原始碼原封不動附在旁邊。
+
+混淆會改寫每一個 `.js`，**改壞了只有在啟動時才看得出來**，
+所以 CI 在打包前會真的把它跑起來問一次健康檢查。
+
 ## 容器與資源
 
 | 容器 | 記憶體上限 | 為什麼 |
@@ -50,6 +121,20 @@ E2E job 會拉起 PostGIS / Redis / MinIO 三個 service container，跑 seed，
 啟動五個行程，用 `wait-on` 等到真的就緒（不睡固定秒數 —— CI 機器的速度每次都不一樣），
 再跑 Playwright。失敗時上傳截圖、影片與 trace，保留 7 天。
 
+## Release：離線包
+
+`.github/workflows/release-offline.yml`，**推 tag `v*` 或手動觸發**。
+
+```
+verify(型別 + 測試 + 混淆後啟動測試) ──▶ bundle(打包 → artifact → 附到 Release)
+```
+
+打包本身不會發現任何問題 —— 混淆後的程式碼壞掉時，
+只有在對方的機器上啟動失敗才看得出來，而那時已經來不及了。
+所以 `verify` 這一段真的把混淆後的後端跑起來。
+
+離線包一兩 GB，所以只在 tag 或手動觸發時產生，artifact 保留 14 天。
+
 ## CD
 
 `.github/workflows/deploy.yml`，**手動觸發或推 tag 才部署**。
@@ -71,6 +156,8 @@ E2E job 會拉起 PostGIS / Redis / MinIO 三個 service container，跑 seed，
 | `REGISTRY_USER` / `REGISTRY_TOKEN` | secret | 推映像 |
 | `DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_KEY` | secret | SSH 部署 |
 
+離線包不需要任何 secret —— 它產在 CI 上，由人帶到現場。
+
 ## 上線前檢查
 
 - [ ] `.env` 的每個密碼都換過（`openssl rand -hex 32` 產 JWT_SECRET）
@@ -79,3 +166,4 @@ E2E job 會拉起 PostGIS / Redis / MinIO 三個 service container，跑 seed，
 - [ ] Grafana 密碼換過，`GF_AUTH_ANONYMOUS_ENABLED` 保持 false
 - [ ] MinIO bucket 確認**不是**公開讀取
 - [ ] 資料庫備份排程實際跑過一次並驗證還原
+- [ ] 交付用的映像確認有做原始碼保護（`docker run ... cat apps/api/dist/main/api.js | head` 看得到明碼就是沒做）

@@ -36,7 +36,7 @@ jobs:
       - name: 建置並推送
         uses: docker/build-push-action@v6
         with:
-          context: ./app
+          context: .
           file: ./Dockerfile
           target: backend
           push: true

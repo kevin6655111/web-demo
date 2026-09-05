@@ -1,0 +1,8 @@
+{
+  "env": {
+    "TS_NODE_PROJECT": "tsconfig.json"
+  },
+  "watch": ["src"],
+  "ext": "ts,js",
+  "ignore": ["node_modules", "logs", "dist"]
+}

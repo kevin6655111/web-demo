@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/esm",
+    "module": "ES2020",
+    // ES2020 模組預設走 classic 解析，那會關掉 resolveJsonModule；
+    // 指定 bundler 是因為這份產出只給 Vite / Rollup 用
+    "moduleResolution": "bundler",
+    "declaration": false
+  }
+}

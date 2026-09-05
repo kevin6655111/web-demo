@@ -11,8 +11,8 @@
 services:
   nginx:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
       target: frontend-server
     container_name: patrol-nginx
     environment:
@@ -29,11 +29,11 @@ services:
 
   api:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
       target: backend
     container_name: patrol-api
-    command: ["node", "-r", "./server/register.js", "dist/server/server.js"]
+    command: ["node", "-r", "./register.js", "dist/main/api.js"]
     environment:
       - NODE_ENV=production   # 決定讀 prod.yaml 還是 dev.yaml
       - PORT=3008
@@ -52,9 +52,9 @@ services:
         condition: service_healthy
     volumes:
       # 設定與機密都用唯讀掛載：容器裡不留可寫的密碼副本
-      - ./config/config.prod.yaml:/app/config/config.prod.yaml:ro
-      - ./.env:/app/.env:ro
-      - api_logs:/app/logs
+      - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
+      - ./.env:/repo/.env:ro
+      - api_logs:/repo/apps/api/logs
     restart: unless-stopped
     networks: [patrol-net]
     healthcheck:
@@ -66,11 +66,11 @@ services:
 
   tiles:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
       target: backend
     container_name: patrol-tiles
-    command: ["node", "-r", "./server/register.js", "dist/server/tiles.js"]
+    command: ["node", "-r", "./register.js", "dist/main/tiles.js"]
     environment:
       - NODE_ENV=production
       - PORT=3010
@@ -82,18 +82,18 @@ services:
       api:
         condition: service_healthy
     volumes:
-      - ./config/config.prod.yaml:/app/config/config.prod.yaml:ro
-      - ./.env:/app/.env:ro
+      - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
+      - ./.env:/repo/.env:ro
     restart: unless-stopped
     networks: [patrol-net]
 
   worker:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
       target: backend
     container_name: patrol-worker
-    command: ["node", "-r", "./server/register.js", "dist/server/worker.js"]
+    command: ["node", "-r", "./register.js", "dist/main/worker.js"]
     environment:
       - NODE_ENV=production
       - RUN_MIGRATIONS=false
@@ -102,9 +102,9 @@ services:
       api:
         condition: service_healthy   # 等 API 跑完 migration 再啟動，避免兩邊搶著建表
     volumes:
-      - ./config/config.prod.yaml:/app/config/config.prod.yaml:ro
-      - ./.env:/app/.env:ro
-      - worker_logs:/app/logs
+      - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
+      - ./.env:/repo/.env:ro
+      - worker_logs:/repo/apps/api/logs
     restart: unless-stopped
     networks: [patrol-net]
     # 案件處理要吞吐，開多一點沒關係
@@ -115,11 +115,11 @@ services:
 
   report-worker:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
       target: backend
     container_name: patrol-report-worker
-    command: ["node", "-r", "./server/register.js", "dist/server/report-worker.js"]
+    command: ["node", "-r", "./register.js", "dist/main/report-worker.js"]
     environment:
       - NODE_ENV=production
       - RUN_MIGRATIONS=false
@@ -128,9 +128,9 @@ services:
       api:
         condition: service_healthy
     volumes:
-      - ./config/config.prod.yaml:/app/config/config.prod.yaml:ro
-      - ./.env:/app/.env:ro
-      - worker_logs:/app/logs
+      - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
+      - ./.env:/repo/.env:ro
+      - worker_logs:/repo/apps/api/logs
     restart: unless-stopped
     networks: [patrol-net]
     # 報表一份就吃掉幾百 MB，記憶體上限要比案件 worker 高
@@ -141,11 +141,11 @@ services:
 
   scheduler:
     build:
-      context: ./app
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
       target: backend
     container_name: patrol-scheduler
-    command: ["node", "-r", "./server/register.js", "dist/server/scheduler.js"]
+    command: ["node", "-r", "./register.js", "dist/main/scheduler.js"]
     environment:
       - NODE_ENV=production
       - RUN_MIGRATIONS=false
@@ -154,9 +154,9 @@ services:
       api:
         condition: service_healthy
     volumes:
-      - ./config/config.prod.yaml:/app/config/config.prod.yaml:ro
-      - ./.env:/app/.env:ro
-      - scheduler_logs:/app/logs
+      - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
+      - ./.env:/repo/.env:ro
+      - scheduler_logs:/repo/apps/api/logs
     restart: unless-stopped
     networks: [patrol-net]
     # 排程只能有一份在跑：真要多開，Redis 鎖會擋住重複執行，但沒有必要

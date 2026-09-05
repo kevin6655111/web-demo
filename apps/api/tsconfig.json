@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+
+    // Nest / TypeORM 需要的設定
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "allowJs": true,
+    "types": ["node"],
+
+    // `@road-patrol/shared` 不列在這裡：它由 workspace 的 node_modules 連結解析到
+    // 自己編好的 dist。走 paths 指向原始碼的話，tsc 會把它一起編進來，
+    // rootDir 就得往上抬到整個 repo，產出路徑會變成 dist/apps/api/src/…
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@entities/*": ["auth/entities/*", "case-patrol/entities/*"],
+      "@decorators/*": ["auth/decorators/*"],
+      "@constants/*": ["auth/constants/*"],
+      "@app-types/*": ["http/types/*", "auth/types/*", "case-patrol/types/*", "env/types/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}
