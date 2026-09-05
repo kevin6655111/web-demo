@@ -16,6 +16,27 @@ bash start.sh --seed               # 建置、啟動、灌示範資料
 
 埠號刻意避開常見預設值（80/5432/6379/9000），才不會和機器上其他專案打架。
 
+### 備援入口
+
+有些環境拿不到主要 port（防火牆只放行特定 port、或機房只配一個給我們）。
+nginx 另外聽一個 8081，提供**完全相同**的服務：
+
+```bash
+HTTP_ALT_PORT=8080 docker compose up -d nginx   # 客戶改連 http://主機:8080
+```
+
+不設 `HTTP_ALT_PORT` 就只綁在 `127.0.0.1`，等於沒對外開。
+
+兩個 server block 共用 `nginx/conf/site.inc` —— 分成兩份的話，改了一邊忘了另一邊，
+而「只有走備援 port 的客戶會壞」是最難重現的那種問題。
+
+proxy 一律用 `$http_host` 而不是 `$host`：**`$host` 會把 port 吃掉**，
+走備援 port 時後端不知道自己是被從 `:8080` 存取的，
+它產生的絕對網址（簽名網址、重導向）會指回沒開放的那個 port。
+
+正式站台補 TLS 時，兩個 block 一起加 `ssl` 即可。注意 Let's Encrypt 的
+HTTP-01 只認 port 80，備援 port 簽不到憑證。
+
 ## 停止
 
 ```bash
@@ -165,5 +186,7 @@ verify(型別 + 測試 + 混淆後啟動測試) ──▶ bundle(打包 → arti
 - [ ] Nginx 補上 TLS 憑證與 HSTS（Demo 走 HTTP）
 - [ ] Grafana 密碼換過，`GF_AUTH_ANONYMOUS_ENABLED` 保持 false
 - [ ] MinIO bucket 確認**不是**公開讀取
+- [ ] 安全表頭真的有出現在**網頁**回應上（`curl -I http://主機:18080/`）——
+      nginx 的 `add_header` 是取代不是累加，子 location 只要自己寫了一個就會蓋掉父層全部
 - [ ] 資料庫備份排程實際跑過一次並驗證還原
 - [ ] 交付用的映像確認有做原始碼保護（`docker run ... cat apps/api/dist/main/api.js | head` 看得到明碼就是沒做）

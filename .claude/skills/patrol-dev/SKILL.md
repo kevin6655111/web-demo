@@ -358,6 +358,10 @@ bash clean.sh                  # 停止(保留資料)
 
 **埠號刻意避開 web_server 專案**（那套佔用 80/443/5432/6379/9000）。改埠號時兩邊都要確認。
 
+另有**備援入口**：`HTTP_ALT_PORT=8080 docker compose up -d nginx`。
+給拿不到主要 port 的環境用，內容完全相同，兩個 server block 共用 `nginx/conf/site.inc`。
+不設就只綁 `127.0.0.1`，等於沒開。
+
 示範帳號：`DEMO` / `admin`、`inspector`、`worker1`、`viewer`，密碼皆為 `Demo1234`。
 
 ---
@@ -438,6 +442,8 @@ bash scripts/pack-offline.sh [版本號]
 | 排程狀態是空的 | `scheduler` 行程沒起來（狀態由它寫進 Redis，api 只負責讀）|
 | WebSocket 連得上但收不到推播 | 全域守衛沒排除非 HTTP 情境；或頻道沒加進 `WS_CHANNEL` |
 | 向量圖磚永遠是空的 | 幾何沒轉到 3857，或舊的空圖磚還在 Redis 快取裡 |
+| 安全表頭在網頁上沒出現、靜態檔卻有 | nginx 的 `add_header` 是**取代**不是累加 —— 子 location 只要自己寫了一個，父層的全部會被丟掉。凡是有自己 add_header 的 location 都要再 include `security-headers.inc` |
+| 走備援 port 時簽名網址／重導向指回錯的 port | proxy 用了 `$host`（會吃掉 port），要改 `$http_host` |
 | 前端資料抓兩遍 | 元件被渲染兩次（用 `useMediaQuery` 決定位置，不要用 CSS 顯示兩份）|
 | 版本比較回 404 | 該版本的歷程沒有 `snapshot`（直接用 repository 寫入的歷程會這樣）|
 | **復原後回到了初始狀態而不是刪除前的狀態** | 中間某次狀態變動沒寫歷程 —— 通常是別的模組改的 |

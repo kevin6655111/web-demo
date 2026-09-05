@@ -18,7 +18,10 @@ services:
     environment:
       - TZ=Asia/Taipei
     ports:
-      - "18080:80"
+      - "18080:80" # 主要入口
+      # 備援 port：給拿不到主要 port 的環境用（防火牆擋掉、或機房只配一個 port）。
+      # 預設綁 127.0.0.1 等於沒對外開；要用就設 HTTP_ALT_PORT=8080
+      - "${HTTP_ALT_PORT:-127.0.0.1:18081}:8081"
     depends_on:
       api:
         condition: service_healthy
