@@ -69,8 +69,7 @@ body {
   /* 兩道極淡的徑向光暈：整片純色在大螢幕上會顯得很平 */
   background:
     radial-gradient(1200px 600px at 12% -10%, var(--app-glow-1), transparent 60%),
-    radial-gradient(900px 500px at 90% 0%, var(--app-glow-2), transparent 55%),
-    var(--app-bg);
+    radial-gradient(900px 500px at 90% 0%, var(--app-glow-2), transparent 55%), var(--app-bg);
   background-attachment: fixed;
 }
 
@@ -105,9 +104,17 @@ body {
 
 /* 新案件進來時，地圖上的點閃一下 */
 @keyframes pulse-ring {
-  0% { transform: scale(0.7); opacity: 0.9; }
-  70% { transform: scale(2.4); opacity: 0; }
-  100% { opacity: 0; }
+  0% {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 .pulse-dot::after {
   content: '';
@@ -119,5 +126,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-dot::after { animation: none; }
+  .pulse-dot::after {
+    animation: none;
+  }
 }

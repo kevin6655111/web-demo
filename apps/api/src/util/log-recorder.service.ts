@@ -22,7 +22,10 @@ export class LogRecorderService {
 
     const logger = winston.createLogger({
       level,
-      format: winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), winston.format.json()),
+      format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.json()
+      ),
       transports: [
         new winston.transports.DailyRotateFile({
           dirname: path.join(LogRecorderService.BASE_DIR, category),

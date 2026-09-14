@@ -130,6 +130,23 @@ export class PatrolCase {
   @Column({ name: 'altitude', type: 'real', nullable: true })
   altitude?: number;
 
+  /** 車輛當下的方位角(0–359)；GPS 校正靠它決定往哪個方向推 */
+  @Column({ name: 'heading', type: 'real', nullable: true })
+  heading?: number;
+
+  /**
+   * 車機回報的原始座標。
+   *
+   * `longitude`/`latitude` 存的是校正後的值。原始值另存一份，
+   * 因為校正的假設(天線在車頂、破壞在鏡頭正前方 5 公尺)不見得每種車機都成立 ——
+   * 換了車機之後發現偏得更遠時，要有東西可以重算。
+   */
+  @Column({ name: 'raw_longitude', type: 'double precision', nullable: true })
+  rawLongitude?: number;
+
+  @Column({ name: 'raw_latitude', type: 'double precision', nullable: true })
+  rawLatitude?: number;
+
   /**
    * 空間欄位。
    * 經緯度另外存 double：報表與 CSV 匯出要的是數字，

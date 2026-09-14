@@ -94,7 +94,10 @@ function SpecField({ field, value, error, readOnly, onChange, first }) {
           bgcolor: 'action.hover'
         }}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textAlign: 'center', lineHeight: 1.25 }}>
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 600, color: 'text.secondary', textAlign: 'center', lineHeight: 1.25 }}
+        >
           {label}
         </Typography>
         {required && (
@@ -121,7 +124,10 @@ function SpecField({ field, value, error, readOnly, onChange, first }) {
         ) : (
           <Typography
             variant="body2"
-            sx={{ color: value === null || value === undefined || value === '' ? 'text.disabled' : 'text.primary', wordBreak: 'break-word' }}
+            sx={{
+              color: value === null || value === undefined || value === '' ? 'text.disabled' : 'text.primary',
+              wordBreak: 'break-word'
+            }}
           >
             {value === null || value === undefined || value === '' ? '—' : value}
             {unit && value !== null && value !== undefined && value !== '' ? ` ${unit}` : ''}
@@ -146,7 +152,15 @@ function EditableControl({ type, name, value, options = [], unit, error, hint, o
 
   // 選項多的時候自己會長出搜尋欄 —— 標案、車輛、行政區都超過門檻
   if (type === 'select' || type === 'multi') {
-    return <SearchableSelect {...common} multiple={type === 'multi'} value={value} options={options} onChange={(v) => onChange(name, v)} />;
+    return (
+      <SearchableSelect
+        {...common}
+        multiple={type === 'multi'}
+        value={value}
+        options={options}
+        onChange={(v) => onChange(name, v)}
+      />
+    );
   }
 
   return (
@@ -155,7 +169,9 @@ function EditableControl({ type, name, value, options = [], unit, error, hint, o
         {...common}
         type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
         value={value ?? ''}
-        onChange={(e) => onChange(name, type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
+        onChange={(e) =>
+          onChange(name, type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)
+        }
         inputProps={type === 'number' ? { min: 0, step: 'any' } : undefined}
         InputLabelProps={type === 'date' ? { shrink: true } : undefined}
       />

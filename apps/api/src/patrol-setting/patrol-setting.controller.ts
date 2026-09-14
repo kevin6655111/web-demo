@@ -35,7 +35,10 @@ export class PatrolSettingController {
 
   /** 巡查路線圖層 */
   @Get('patrol/plan/layer')
-  @ApiOperation({ summary: '巡查路線圖層(GeoJSON LineString)', description: ['給地圖疊在軌跡之上，一眼看出哪一段沒走到。', '', '所需權限：`PROJECT.READ`'].join('\n') })
+  @ApiOperation({
+    summary: '巡查路線圖層(GeoJSON LineString)',
+    description: ['給地圖疊在軌跡之上，一眼看出哪一段沒走到。', '', '所需權限：`PROJECT.READ`'].join('\n')
+  })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors()
   @RequireAction(ACTION.PROJECT.READ)

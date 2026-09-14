@@ -40,7 +40,21 @@ import { CRACK_LABEL, DEGREE_COLOR, DEGREE_LABEL, MATERIAL_LABEL } from '../../.
 import { useUser } from '../../../context/UserContext';
 
 /** 可編輯的欄位；只有這些會進 PATCH，其餘是事實而不是意見 */
-const EDITABLE = ['CRACK_TYPE', 'DEGREE', 'LENGTH', 'WIDTH', 'AREA', 'DEPTH', 'COUNTY', 'DISTRICT', 'CAVLGE', 'ROAD', 'ADDRESS', 'PROJECT_ID', 'REMARK'];
+const EDITABLE = [
+  'CRACK_TYPE',
+  'DEGREE',
+  'LENGTH',
+  'WIDTH',
+  'AREA',
+  'DEPTH',
+  'COUNTY',
+  'DISTRICT',
+  'CAVLGE',
+  'ROAD',
+  'ADDRESS',
+  'PROJECT_ID',
+  'REMARK'
+];
 const NUMERIC = ['LENGTH', 'WIDTH', 'AREA', 'DEPTH', 'PROJECT_ID'];
 
 /**
@@ -235,7 +249,14 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
       {
         title: '破壞資訊',
         fields: [
-          { label: '破壞類型', name: 'CRACK_TYPE', type: 'select', required: true, span: 6, options: opts(CRACK_LABEL) },
+          {
+            label: '破壞類型',
+            name: 'CRACK_TYPE',
+            type: 'select',
+            required: true,
+            span: 6,
+            options: opts(CRACK_LABEL)
+          },
           { label: '嚴重程度', name: 'DEGREE', type: 'select', required: true, span: 6, options: opts(DEGREE_LABEL) },
           { label: '破壞序號', name: 'CRACK_ID', span: 6 },
           { label: '高程', name: 'ALTITUDE_TEXT', span: 6 }
@@ -269,7 +290,10 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
               duplicates.length ? (
                 <Stack direction="row" spacing={0.7} flexWrap="wrap" useFlexGap sx={{ py: 0.3 }}>
                   {duplicates.map((d) => (
-                    <Tooltip key={d.ID} title={`${CasePresenter.crackLabel(d.CRACK_TYPE)} · ${d.DISTANCE_M} 公尺外 · ${CasePresenter.time(d.DT_RECORD)}`}>
+                    <Tooltip
+                      key={d.ID}
+                      title={`${CasePresenter.crackLabel(d.CRACK_TYPE)} · ${d.DISTANCE_M} 公尺外 · ${CasePresenter.time(d.DT_RECORD)}`}
+                    >
                       <Chip
                         size="small"
                         variant="outlined"
@@ -347,7 +371,12 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
                 </Typography>
                 {c && (
                   <>
-                    <Chip size="small" variant="outlined" label={CasePresenter.needRepairLabel(c.NEED_REPAIR)} sx={{ borderColor: color, color }} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={CasePresenter.needRepairLabel(c.NEED_REPAIR)}
+                      sx={{ borderColor: color, color }}
+                    />
                     <Chip
                       size="small"
                       variant="outlined"
@@ -371,7 +400,12 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
                 <Typography variant="caption" color="text.secondary" sx={{ fontFamily: '"JetBrains Mono", monospace' }}>
                   {index + 1} / {caseList.length}
                 </Typography>
-                <IconButton size="small" aria-label="下一筆案件" disabled={index >= caseList.length - 1} onClick={() => go(1)}>
+                <IconButton
+                  size="small"
+                  aria-label="下一筆案件"
+                  disabled={index >= caseList.length - 1}
+                  onClick={() => go(1)}
+                >
                   <KeyboardArrowRightIcon fontSize="small" />
                 </IconButton>
               </Stack>
@@ -389,7 +423,10 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
           sx={{ px: 2, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none' } }}
         >
           <Tab value="info" label="案件內容" />
-          <Tab value="workorder" label={workOrder ? `派工（${CasePresenter.workOrderLabel(workOrder.STATUS)}）` : '派工'} />
+          <Tab
+            value="workorder"
+            label={workOrder ? `派工（${CasePresenter.workOrderLabel(workOrder.STATUS)}）` : '派工'}
+          />
           <Tab value="chat" label="討論" icon={<ChatIcon sx={{ fontSize: 15 }} />} iconPosition="start" />
         </Tabs>
 
@@ -412,7 +449,9 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
           {c && tab === 'info' && (
             // 表單與照片並排：判讀時要一邊看照片一邊改欄位，
             // 分成上下的話改一個值就要捲動一次
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 5fr' }, gap: 2, alignItems: 'start' }}>
+            <Box
+              sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 5fr' }, gap: 2, alignItems: 'start' }}
+            >
               <SpecSheet groups={groups} value={sheetValue} errors={errors} onChange={setForm} readOnly={!canEdit} />
 
               <Stack spacing={1.5} sx={{ position: { md: 'sticky' }, top: 0 }}>
@@ -467,7 +506,11 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
                       attributionControl={false}
                     >
                       <TileLayer url={BASEMAPS.EMAP.url} maxZoom={19} />
-                      <CircleMarker center={[c.LAT, c.LNG]} radius={9} pathOptions={{ color, fillColor: color, fillOpacity: 0.8, weight: 3 }} />
+                      <CircleMarker
+                        center={[c.LAT, c.LNG]}
+                        radius={9}
+                        pathOptions={{ color, fillColor: color, fillOpacity: 0.8, weight: 3 }}
+                      />
                     </MapContainer>
 
                     <Tooltip title="在 Google 地圖開啟街景">
@@ -494,7 +537,12 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
               {workOrder ? (
                 <>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                    <Chip size="small" variant="outlined" color="primary" label={CasePresenter.workOrderLabel(workOrder.STATUS)} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      label={CasePresenter.workOrderLabel(workOrder.STATUS)}
+                    />
                     <Chip size="small" variant="outlined" label={CasePresenter.workOrderTypeLabel(workOrder.TYPE)} />
                     <Typography variant="body2" sx={{ fontFamily: '"JetBrains Mono", monospace' }}>
                       {workOrder.CASE_NUM}
@@ -537,7 +585,9 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
                   />
 
                   {workOrder.MISSING_IMAGE_COUNT > 0 && (
-                    <Alert severity="warning">此派工單尚缺 {workOrder.MISSING_IMAGE_COUNT} 張必要照片，無法標記完工。</Alert>
+                    <Alert severity="warning">
+                      此派工單尚缺 {workOrder.MISSING_IMAGE_COUNT} 張必要照片，無法標記完工。
+                    </Alert>
                   )}
                 </>
               ) : (
@@ -568,7 +618,12 @@ export default function CaseDetailDialog({ open, caseId, caseList = [], onClose,
           )}
 
           {can('WORK_ORDER.CREATE') && (
-            <Button color="warning" startIcon={<BuildIcon />} disabled={!c || !!workOrder} onClick={() => setDispatching(true)}>
+            <Button
+              color="warning"
+              startIcon={<BuildIcon />}
+              disabled={!c || !!workOrder}
+              onClick={() => setDispatching(true)}
+            >
               建立派工單
             </Button>
           )}

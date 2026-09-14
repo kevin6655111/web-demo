@@ -53,25 +53,73 @@ const RESTORE_MAP: Record<CaseType, RestoreTarget[]> = {
   MAINTENANCE: [
     {
       entity: Maintenance,
-      fields: ['type', 'surveyDate', 'period', 'weather', 'dtype', 'degree', 'dtypeLength', 'dtypeWidth', 'dtypeArea', 'county', 'district', 'cavlge', 'address', 'remark']
+      fields: [
+        'type',
+        'surveyDate',
+        'period',
+        'weather',
+        'dtype',
+        'degree',
+        'dtypeLength',
+        'dtypeWidth',
+        'dtypeArea',
+        'county',
+        'district',
+        'cavlge',
+        'address',
+        'remark'
+      ]
     },
     { entity: MaintenanceStatus, link: 'maintenance_id', fields: ['status'] },
-    { entity: MaintenanceRepair, link: 'maintenance_id', fields: ['material', 'refillLength', 'refillWidth', 'quantity'] }
+    {
+      entity: MaintenanceRepair,
+      link: 'maintenance_id',
+      fields: ['material', 'refillLength', 'refillWidth', 'quantity']
+    }
   ],
   WORK_ORDER: [
     {
       entity: WorkOrder,
       fields: [
-        'dispatchDate', 'dueDate', 'workStartDate', 'workEndDate',
-        'county', 'district', 'cavlge', 'address', 'startAddr', 'endAddr',
-        'material', 'materialSize', 'workLength', 'workWidth', 'workDepthMilling', 'workDepthPaving', 'remark'
+        'dispatchDate',
+        'dueDate',
+        'workStartDate',
+        'workEndDate',
+        'county',
+        'district',
+        'cavlge',
+        'address',
+        'startAddr',
+        'endAddr',
+        'material',
+        'materialSize',
+        'workLength',
+        'workWidth',
+        'workDepthMilling',
+        'workDepthPaving',
+        'remark'
       ]
     },
     { entity: WorkOrderStatus, link: 'work_order_id', fields: ['status'] },
     { entity: WorkOrderImprovement, link: 'work_order_id', fields: ['sampleTaken', 'sampleDate', 'testItem'] }
   ],
   PROJECT: [
-    { entity: Project, fields: ['prjNo', 'prjName', 'prjMain', 'prjSub', 'proprietor', 'proprietorLevel', 'startDate', 'endDate', 'budget', 'roadKm', 'state'] }
+    {
+      entity: Project,
+      fields: [
+        'prjNo',
+        'prjName',
+        'prjMain',
+        'prjSub',
+        'proprietor',
+        'proprietorLevel',
+        'startDate',
+        'endDate',
+        'budget',
+        'roadKm',
+        'state'
+      ]
+    }
   ],
   // 檢測案件的內容來自儀器量測，人工只會標註而不會改數值 —— 沒有「改回去」這件事
   SURVEY: []
@@ -215,7 +263,12 @@ export class CaseHistoryService {
    * @param current  現在的值；等於它的版本會被跳過
    * @param field    快照裡的欄位名
    */
-  public async getPreviousDifferentValue(caseType: CaseType, caseId: number, current: unknown, field: string): Promise<unknown> {
+  public async getPreviousDifferentValue(
+    caseType: CaseType,
+    caseId: number,
+    current: unknown,
+    field: string
+  ): Promise<unknown> {
     const found = await this.getPreviousDifferentValues(caseType, [caseId], current, field);
     return found.get(caseId);
   }
@@ -308,7 +361,10 @@ export class CaseHistoryService {
 
   /** 比較兩個版本 */
   public async compare(caseType: CaseType, caseId: number, from: number, to: number): Promise<HttpResult> {
-    const [a, b] = await Promise.all([this.findVersion(caseType, caseId, from), this.findVersion(caseType, caseId, to)]);
+    const [a, b] = await Promise.all([
+      this.findVersion(caseType, caseId, from),
+      this.findVersion(caseType, caseId, to)
+    ]);
 
     return HttpResponse.success({ data: { FROM: from, TO: to, CHANGES: this.diff(a.snapshotJson, b.snapshotJson) } });
   }
@@ -326,7 +382,13 @@ export class CaseHistoryService {
    * 「這筆資料曾經被還原過、從哪一版還原的」在稽核時看得到，
    * 若還原改成覆蓋，被還原掉的那一版就永遠說不清楚發生過什麼。
    */
-  public async restore(caseType: CaseType, caseId: number, version: number, operatorId: number, clientIp?: string): Promise<HttpResult> {
+  public async restore(
+    caseType: CaseType,
+    caseId: number,
+    version: number,
+    operatorId: number,
+    clientIp?: string
+  ): Promise<HttpResult> {
     const targets = RESTORE_MAP[caseType];
     if (!targets?.length) throw new BadRequestException(`${caseType} 不支援版本還原`);
 
@@ -375,11 +437,19 @@ export class CaseHistoryService {
       note: `還原自第 ${version} 版`
     });
 
-    return HttpResponse.success({ message: `已還原至第 ${version} 版`, data: { RESTORED_FROM: version, FIELDS: applied } });
+    return HttpResponse.success({
+      message: `已還原至第 ${version} 版`,
+      data: { RESTORED_FROM: version, FIELDS: applied }
+    });
   }
 
   /** 稽核查詢：某段期間、某個人做了什麼 */
-  public async audit(params: { caseType?: CaseType; operatorId?: number; from?: string; to?: string }): Promise<HttpResult> {
+  public async audit(params: {
+    caseType?: CaseType;
+    operatorId?: number;
+    from?: string;
+    to?: string;
+  }): Promise<HttpResult> {
     const qb = this.historyRepo
       .createQueryBuilder('h')
       .leftJoinAndSelect('h.modifiedBy', 'u')
@@ -412,7 +482,10 @@ export class CaseHistoryService {
   // ─── 內部 ───────────────────────────────────────────────────────
 
   private async findVersion(caseType: CaseType, caseId: number, version: number): Promise<CaseHistory> {
-    const row = await this.historyRepo.findOne({ where: { caseType, caseId, version }, relations: { modifiedBy: true } });
+    const row = await this.historyRepo.findOne({
+      where: { caseType, caseId, version },
+      relations: { modifiedBy: true }
+    });
     if (!row) throw new NotFoundException(`找不到版本：${caseType}#${caseId} 第 ${version} 版`);
 
     return row;

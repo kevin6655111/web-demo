@@ -15,7 +15,18 @@ export type AppConfig = {
     name: string;
     port: { http: number; ws: number };
     jwt: { secret: string; expiresInSec: number };
-    password: { saltRounds: number; minLength: number };
+    password: {
+      saltRounds: number;
+      minLength: number;
+      /** 兩次改密碼的最短間隔(小時)；防止改回舊密碌的「換兩次」把戲 */
+      cooldownHours?: number;
+      /** 不可與最近幾次相同 */
+      historyDepth?: number;
+      /** 密碼有效天數；0 或省略代表不強制定期更換 */
+      maxAgeDays?: number;
+    };
+    /** 二篩計價；省略時用 shared 的預設值 */
+    sift?: { unitPrice: number; errorPrice: number };
   };
 
   database: {

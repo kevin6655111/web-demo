@@ -10,6 +10,7 @@ import { WorkOrder } from '@/work-order/entities/work-order.entity';
 import { Project } from '@/project/entities/project.entity';
 import { StorageService } from '@/storage/storage.service';
 import { CaseHistoryService } from '@/case-history/case-history.service';
+import { CaseEncodeService } from '@/case-encode/case-encode.service';
 import { CaseEventPublisher } from '@/queue/case-event.publisher';
 import {
   CRACK_TYPE_DEF,
@@ -66,6 +67,7 @@ export class MaintenanceService {
     @InjectRepository(Project) private readonly projectRepo: Repository<Project>,
     private readonly storageService: StorageService,
     private readonly caseHistoryService: CaseHistoryService,
+    private readonly caseEncodeService: CaseEncodeService,
     private readonly eventPublisher: CaseEventPublisher,
     private readonly dataSource: DataSource
   ) {}
@@ -80,8 +82,13 @@ export class MaintenanceService {
     const project = await this.projectRepo.findOne({ where: { prjId: dto.PRJ_ID } });
     if (!project) throw new NotFoundException(`找不到標案：${dto.PRJ_ID}`);
 
-    const { result: saved, caseNum } = await this.withCaseNum(project.prjId, dto.TYPE, user.companyId, (caseNum) =>
-      this.dataSource.transaction(async (manager) => {
+    // 取號在交易裡：號碼與資料一起成敗，建單失敗不會留下一個被跳過的號
+    const { saved, caseNum } = await this.dataSource.transaction(async (manager) => {
+      const caseNum = await this.caseEncodeService.next(
+        { prefix: `${project.prjId}${dto.TYPE}`, seqDate: CaseEncodeService.monthOf(dto.SURVEY_DATE) },
+        manager
+      );
+      {
         const repo = manager.getRepository(Maintenance);
 
         // 坑洞編號在交易裡取，兩個人同時開單才不會拿到同一號
@@ -102,7 +109,8 @@ export class MaintenanceService {
             potholeNumber,
             dtypeLength: dto.DTYPE_LENGTH,
             dtypeWidth: dto.DTYPE_WIDTH,
-            dtypeArea: dto.DTYPE_LENGTH && dto.DTYPE_WIDTH ? Number((dto.DTYPE_LENGTH * dto.DTYPE_WIDTH).toFixed(3)) : undefined,
+            dtypeArea:
+              dto.DTYPE_LENGTH && dto.DTYPE_WIDTH ? Number((dto.DTYPE_LENGTH * dto.DTYPE_WIDTH).toFixed(3)) : undefined,
             county: dto.COUNTY,
             district: dto.DISTRICT,
             cavlge: dto.CAVLGE,
@@ -113,7 +121,9 @@ export class MaintenanceService {
         );
 
         const statusRepo = manager.getRepository(MaintenanceStatus);
-        await statusRepo.save(statusRepo.create({ maintenance: { id: row.id }, status: STATUS.PENDING, updStatusUsr: { id: user.uid } }));
+        await statusRepo.save(
+          statusRepo.create({ maintenance: { id: row.id }, status: STATUS.PENDING, updStatusUsr: { id: user.uid } })
+        );
 
         if (dto.TYPE === 'RB') {
           const repairRepo = manager.getRepository(MaintenanceRepair);
@@ -128,9 +138,9 @@ export class MaintenanceService {
           );
         }
 
-        return row;
-      })
-    );
+        return { saved: row, caseNum };
+      }
+    });
 
     await this.caseHistoryService.record({
       caseType: 'MAINTENANCE',
@@ -143,7 +153,12 @@ export class MaintenanceService {
       clientIp
     });
 
-    this.eventPublisher.maintenanceChanged({ companyId: user.companyId, ids: [saved.id], caseNums: [caseNum], state: 'CREATED' });
+    this.eventPublisher.maintenanceChanged({
+      companyId: user.companyId,
+      ids: [saved.id],
+      caseNums: [caseNum],
+      state: 'CREATED'
+    });
 
     return HttpResponse.success({ message: '巡查單已建立', data: { ID: saved.id, CASE_NUM: caseNum } });
   }
@@ -196,7 +211,11 @@ export class MaintenanceService {
     }
 
     const effectiveType = (dto.TYPE ?? current.type) as MaintenanceType;
-    const hasRepair = dto.MATERIAL !== undefined || dto.REFILL_LENGTH !== undefined || dto.REFILL_WIDTH !== undefined || dto.QUANTITY !== undefined;
+    const hasRepair =
+      dto.MATERIAL !== undefined ||
+      dto.REFILL_LENGTH !== undefined ||
+      dto.REFILL_WIDTH !== undefined ||
+      dto.QUANTITY !== undefined;
 
     if (!Object.keys(patch).length && !hasRepair) throw new BadRequestException('沒有要更新的欄位');
 
@@ -239,7 +258,12 @@ export class MaintenanceService {
       clientIp
     });
 
-    this.eventPublisher.maintenanceChanged({ companyId: user.companyId, ids: [dto.ID], caseNums: [current.caseNum], state: 'UPDATED' });
+    this.eventPublisher.maintenanceChanged({
+      companyId: user.companyId,
+      ids: [dto.ID],
+      caseNums: [current.caseNum],
+      state: 'UPDATED'
+    });
 
     return HttpResponse.success({ message: '巡查單已更新' });
   }
@@ -309,7 +333,12 @@ export class MaintenanceService {
    * 只有「沒有活著的派工單」時才可刪。派工單一律由使用者自己處理，不做連帶刪除 ——
    * 刪一張巡查單順手把別人正在施工的派工單也刪掉，是沒有人預期得到的事。
    */
-  private async softDelete(manager: EntityManager, rows: StatusRow[], user: AuthUser, clientIp?: string): Promise<BatchResult> {
+  private async softDelete(
+    manager: EntityManager,
+    rows: StatusRow[],
+    user: AuthUser,
+    clientIp?: string
+  ): Promise<BatchResult> {
     const result: BatchResult = { done: [], skipped: [] };
     const targets: { id: number; caseNum: string }[] = [];
 
@@ -339,7 +368,10 @@ export class MaintenanceService {
 
     await manager
       .getRepository(MaintenanceStatus)
-      .update({ maintenance: { id: In(targets.map((t) => t.id)) } }, { status: STATUS.DELETED, updStatusUsr: { id: user.uid } as never });
+      .update(
+        { maintenance: { id: In(targets.map((t) => t.id)) } },
+        { status: STATUS.DELETED, updStatusUsr: { id: user.uid } as never }
+      );
 
     await this.recordStatusHistoryMany(
       targets.map((t) => ({ id: t.id, status: STATUS.DELETED })),
@@ -361,7 +393,12 @@ export class MaintenanceService {
    *
    * 不連帶復原派工單：巡查單開得出派工單，反過來不成立。
    */
-  private async restore(manager: EntityManager, rows: StatusRow[], user: AuthUser, clientIp?: string): Promise<BatchResult> {
+  private async restore(
+    manager: EntityManager,
+    rows: StatusRow[],
+    user: AuthUser,
+    clientIp?: string
+  ): Promise<BatchResult> {
     const result: BatchResult = { done: [], skipped: [] };
 
     const deleted: StatusRow[] = [];
@@ -404,7 +441,13 @@ export class MaintenanceService {
   }
 
   /** 一般的狀態變更：待確認 / 觀察中 / 已派工 */
-  private async setStatus(manager: EntityManager, rows: StatusRow[], status: number, user: AuthUser, clientIp?: string): Promise<BatchResult> {
+  private async setStatus(
+    manager: EntityManager,
+    rows: StatusRow[],
+    status: number,
+    user: AuthUser,
+    clientIp?: string
+  ): Promise<BatchResult> {
     const result: BatchResult = { done: [], skipped: [] };
     const targets: { id: number; caseNum: string }[] = [];
 
@@ -420,7 +463,10 @@ export class MaintenanceService {
 
     await manager
       .getRepository(MaintenanceStatus)
-      .update({ maintenance: { id: In(targets.map((t) => t.id)) } }, { status, updStatusUsr: { id: user.uid } as never });
+      .update(
+        { maintenance: { id: In(targets.map((t) => t.id)) } },
+        { status, updStatusUsr: { id: user.uid } as never }
+      );
 
     await this.recordStatusHistoryMany(
       targets.map((t) => ({ id: t.id, status })),
@@ -457,8 +503,16 @@ export class MaintenanceService {
   // ─── 照片 ───────────────────────────────────────────────────────
 
   /** 上傳照片；規則與派工單一致：欄位名就是類型，同一類型只留一張 */
-  public async uploadImages(id: number, files: UploadedImage[], deleteTypes: string[], user: AuthUser): Promise<HttpResult> {
-    const row = await this.maintenanceRepo.findOne({ where: { id, company: { id: user.companyId } }, relations: { images: true } });
+  public async uploadImages(
+    id: number,
+    files: UploadedImage[],
+    deleteTypes: string[],
+    user: AuthUser
+  ): Promise<HttpResult> {
+    const row = await this.maintenanceRepo.findOne({
+      where: { id, company: { id: user.companyId } },
+      relations: { images: true }
+    });
     if (!row) throw new NotFoundException(`找不到巡查單：${id}`);
 
     const before = await this.snapshot(id);
@@ -506,7 +560,10 @@ export class MaintenanceService {
       snapshot: await this.snapshot(id),
       before,
       operatorId: user.uid,
-      note: [uploaded.length ? `上傳 ${uploaded.join('、')}` : '', deleteTypes.length ? `刪除 ${deleteTypes.join('、')}` : '']
+      note: [
+        uploaded.length ? `上傳 ${uploaded.join('、')}` : '',
+        deleteTypes.length ? `刪除 ${deleteTypes.join('、')}` : ''
+      ]
         .filter(Boolean)
         .join('；')
     });
@@ -519,7 +576,10 @@ export class MaintenanceService {
 
   /** 照片清單，附短效下載網址與「還缺哪些」 */
   public async listImages(id: number, companyId: number): Promise<HttpResult> {
-    const row = await this.maintenanceRepo.findOne({ where: { id, company: { id: companyId } }, relations: { images: true } });
+    const row = await this.maintenanceRepo.findOne({
+      where: { id, company: { id: companyId } },
+      relations: { images: true }
+    });
     if (!row) throw new NotFoundException(`找不到巡查單：${id}`);
 
     const images = await Promise.all(
@@ -552,7 +612,10 @@ export class MaintenanceService {
       data: {
         GROUPS: groups,
         IMAGES: images,
-        REQUIRED: required.map((type) => ({ TYPE: type, NAME: IMAGE_TYPE_DEF.find((d) => d.type === type)?.name ?? type })),
+        REQUIRED: required.map((type) => ({
+          TYPE: type,
+          NAME: IMAGE_TYPE_DEF.find((d) => d.type === type)?.name ?? type
+        })),
         MISSING: missing.map((m) => ({ TYPE: m.type, NAME: m.name }))
       }
     });
@@ -611,7 +674,8 @@ export class MaintenanceService {
     }
 
     // 待派工清單：還沒開單，或原本那張已經被刪掉的
-    if (dto.NO_ORDER) qb.andWhere('(wo.id IS NULL OR wos.status = :orderDeleted)', { orderDeleted: ORDER_STATUS.DELETED });
+    if (dto.NO_ORDER)
+      qb.andWhere('(wo.id IS NULL OR wos.status = :orderDeleted)', { orderDeleted: ORDER_STATUS.DELETED });
 
     const [rows, total] = await qb.getManyAndCount();
 
@@ -637,60 +701,6 @@ export class MaintenanceService {
   }
 
   // ─── 內部 ───────────────────────────────────────────────────────
-
-  /**
-   * 巡查單號：標案號 + 類型 + 年月 + 四位流水。
-   * 例：DEMO01RA26090001 —— 與派工單同一套編碼規則，從單號就看得出是哪一種單。
-   *
-   * 取**目前最大的流水號 + 1**，不是「筆數 + 1」。
-   * 筆數會在序號有缺口時撞號 —— 而缺口是常態：匯入的資料、
-   * 用別的規則產生的示範資料，都會讓筆數與最大號對不上。
-   *
-   * 併發仍可能兩個請求算到同一號，所以由呼叫端在唯一鍵衝突時重試（見 withCaseNum）。
-   */
-  private async makeCaseNum(prjId: string, type: string, companyId: number): Promise<string> {
-    const ym = new Date().toISOString().slice(2, 7).replace('-', '');
-    const prefix = `${prjId}${type}${ym}`;
-
-    const row = await this.maintenanceRepo
-      .createQueryBuilder('m')
-      .select(`COALESCE(MAX(SUBSTRING(m.case_num FROM ${prefix.length + 1})::int), 0)`, 'max')
-      .where('m.company_id = :companyId', { companyId })
-      // 只算流水號長度正確的：格式不同的舊資料轉成 int 會直接讓查詢失敗
-      .andWhere(`m.case_num ~ :pattern`, { pattern: `^${prefix}[0-9]{4}$` })
-      .getRawOne<{ max: string }>();
-
-    return `${prefix}${String(Number(row?.max ?? 0) + 1).padStart(4, '0')}`;
-  }
-
-  /**
-   * 編號 + 寫入，撞號就重算一次。
-   *
-   * 兩個人同時開單會算到同一個流水號 —— 資料庫的唯一鍵會擋下第二個，
-   * 但使用者看到的是「duplicate key」這種沒有人看得懂的訊息，
-   * 而他要做的只是再按一次送出。那一次重算由這裡代勞。
-   */
-  private async withCaseNum<T>(
-    prjId: string,
-    type: string,
-    companyId: number,
-    write: (caseNum: string) => Promise<T>
-  ): Promise<{ result: T; caseNum: string }> {
-    const MAX_ATTEMPTS = 5;
-
-    for (let attempt = 1; ; attempt += 1) {
-      const caseNum = await this.makeCaseNum(prjId, type, companyId);
-
-      try {
-        return { result: await write(caseNum), caseNum };
-      } catch (error: any) {
-        const duplicated = error?.code === '23505' && String(error?.detail ?? error?.message).includes('case_num');
-        if (!duplicated || attempt >= MAX_ATTEMPTS) throw error;
-
-        this.logger.warn(`單號 ${caseNum} 撞號，重算(第 ${attempt} 次)`);
-      }
-    }
-  }
 
   /** 同一標案內的下一個坑洞編號 */
   private async nextPotholeNumber(manager: EntityManager, projectId: number): Promise<number> {
@@ -894,7 +904,12 @@ export class MaintenanceService {
       REPAIR_DATE: m.repair?.repairDate ?? null,
       UPD_STATUS_USR: m.status?.updStatusUsr?.name ?? null,
       UPD_STATUS_AT: m.status?.updStatusAt ?? null,
-      IMAGES: (m.images ?? []).map((i) => ({ IMG_TYPE: i.imgType, IMG_TYPE_CH: i.imgTypeCh, IMG_NAME: i.imgName, SIZE_BYTES: i.sizeBytes })),
+      IMAGES: (m.images ?? []).map((i) => ({
+        IMG_TYPE: i.imgType,
+        IMG_TYPE_CH: i.imgTypeCh,
+        IMG_NAME: i.imgName,
+        SIZE_BYTES: i.sizeBytes
+      })),
       MISSING_IMAGES: missing.map((x) => ({ TYPE: x.type, NAME: x.name })),
       CREATED_AT: m.createdAt,
       UPDATED_AT: m.updatedAt

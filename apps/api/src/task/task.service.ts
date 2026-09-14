@@ -7,6 +7,8 @@ import { EnvService } from '@/env/env.service';
 import { RedisService } from '@/redis/redis.service';
 import { GeoService } from '@/geo/geo.service';
 import { TilesService } from '@/tiles/tiles.service';
+import { RoadSettingService } from '@/road-setting/road-setting.service';
+import { SettlementService } from '@/dashboard/settlement.service';
 import { CaseHistoryService } from '@/case-history/case-history.service';
 import { PatrolCase } from '@/case-patrol/entities/patrol-case.entity';
 import { PatrolCaseAddress } from '@/case-patrol/entities/patrol-case-address.entity';
@@ -39,6 +41,8 @@ export class TaskService implements OnModuleInit {
     private readonly redisService: RedisService,
     private readonly geoService: GeoService,
     private readonly tilesService: TilesService,
+    private readonly roadSettingService: RoadSettingService,
+    private readonly settlementService: SettlementService,
     private readonly caseHistoryService: CaseHistoryService,
     private readonly taskRunner: TaskRunner,
     private readonly schedulerRegistry: SchedulerRegistry
@@ -98,6 +102,7 @@ export class TaskService implements OnModuleInit {
       roadEvalStat: () => this.roadEvalStat(),
       dailyCheck: () => this.dailyCheck(),
       patrolPointCov: () => this.patrolPointCov(),
+      caseProgress: () => this.caseProgress(),
       addressGeocoder: () => this.addressGeocoder(),
       pathUpdater: () => this.pathUpdater(),
       dashboardSync: () => this.dashboardSync(),
@@ -111,20 +116,40 @@ export class TaskService implements OnModuleInit {
   // ─── 排程實作 ──────────────────────────────────────────────────
 
   /**
-   * 案件編碼：把還沒歸屬標案的案件掛到當期標案底下。
-   * 每分鐘跑一次，所以只處理一小批 —— 讓每輪都能在幾秒內結束。
+   * 案件歸戶：把還沒歸屬標案的案件掛到當期標案底下。
+   *
+   * 車機上傳時帶的是標案代碼，代碼打錯或標案尚未建立時，案件會先落地而不歸戶 ——
+   * 讓案件進得來比讓它歸戶正確重要，後者補得回來，前者補不回來。
+   *
+   * 每分鐘一輪，單輪上限 500 筆，確保每輪都在數秒內結束。
+   *
+   * 標案與公司是多對多（一個標案可能由主辦與協力廠商共同執行），
+   * 關聯在 `company_projects`；`projects` 本身沒有 `company_id` 欄位。
    */
   private async caseAutoCode(): Promise<TaskOutcome> {
     const rows = await this.caseRepo.query(
       `
+      WITH batch AS (
+        SELECT id, company_id, dt_record
+          FROM patrol_cases
+         WHERE project_id IS NULL
+         ORDER BY id
+         LIMIT 500
+      ), matched AS (
+        SELECT DISTINCT ON (b.id) b.id, p.id AS project_id
+          FROM batch b
+          JOIN company_projects cp ON cp.company_id = b.company_id AND cp.is_active = true
+          JOIN projects p ON p.id = cp.project_id
+         WHERE p.state = 'ACTIVE'
+           AND b.dt_record::date BETWEEN COALESCE(p.start_date, '-infinity'::date)
+                                     AND COALESCE(p.end_date, 'infinity'::date)
+         -- 期間重疊時取較晚開始的那個標案：新約通常才是該歸的那一個
+         ORDER BY b.id, p.start_date DESC NULLS LAST
+      )
       UPDATE patrol_cases c
-         SET project_id = p.id
-        FROM projects p
-       WHERE c.project_id IS NULL
-         AND p.company_id = c.company_id
-         AND p.state = 'ACTIVE'
-         AND c.dt_record::date BETWEEN COALESCE(p.start_date, '-infinity'::date) AND COALESCE(p.end_date, 'infinity'::date)
-         AND c.id IN (SELECT id FROM patrol_cases WHERE project_id IS NULL ORDER BY id LIMIT 500)
+         SET project_id = m.project_id
+        FROM matched m
+       WHERE c.id = m.id
       RETURNING c.id
       `
     );
@@ -190,30 +215,59 @@ export class TaskService implements OnModuleInit {
     return { ok: true, detail: { roads: rows.length, top: rows.slice(0, 5) } };
   }
 
-  /** 每日檢查上傳狀態：確認今天有沒有案件進來(沒有通常代表車機或網路斷了) */
+  /**
+   * 每日檢查上傳狀態。
+   *
+   * 督導早上要回答的是「昨天每一台車都有正常上傳嗎」——
+   * 沒有這支排程的話，那個問題要靠人去翻案件清單、按車牌分組、
+   * 再跟出勤表對照，而漏傳通常要等到月底對帳才會被發現。
+   *
+   * 每小時重算當天、順便重算前一天：跨日的最後幾筆常在午夜之後才上傳。
+   */
   private async dailyCheck(): Promise<TaskOutcome> {
-    const row = await this.caseRepo
-      .createQueryBuilder('c')
-      .select('COUNT(*)::int', 'today')
-      .addSelect('MAX(c.dt_record)', 'lastAt')
-      .where("c.dt_record >= date_trunc('day', now())")
-      .getRawOne<{ today: number; lastAt: Date | null }>();
+    const companies = await this.companyRepo.find({ where: { isActive: true }, select: { id: true, code: true } });
+    const dates = [0, 1].map((d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10));
 
-    const silentHours = row?.lastAt ? (Date.now() - new Date(row.lastAt).getTime()) / 3_600_000 : null;
-
-    return {
-      ok: true,
-      detail: {
-        today: row?.today ?? 0,
-        lastAt: row?.lastAt ?? null,
-        // 超過 6 小時沒有新案件就值得看一眼；正式站台會在這裡發告警
-        suspicious: silentHours !== null && silentHours > 6
+    const detail: Record<string, number> = {};
+    for (const company of companies) {
+      for (const date of dates) {
+        const result = await this.settlementService.runDailyCheck(company.id, date);
+        if (result.rows) detail[`${company.code}/${date}`] = result.rows;
       }
-    };
+    }
+
+    return { ok: true, detail: { companies: companies.length, dates, groups: detail } };
   }
 
-  /** 巡查點覆蓋率統計：每條路的案件處理進度 */
+  /**
+   * 巡查點覆蓋率統計。
+   *
+   * 每小時重算**當天**：覆蓋率是即時看的數字(「今天還有幾個點沒到」)，
+   * 隔天才算等於當天完全看不到。重算是覆寫，中途補跑不會讓數字翻倍。
+   *
+   * 同時重算前一天：跨日的最後幾筆軌跡可能在午夜之後才上傳。
+   */
   private async patrolPointCov(): Promise<TaskOutcome> {
+    const companies = await this.companyRepo.find({ where: { isActive: true }, select: { id: true, code: true } });
+
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 86400000);
+    const dates = [today, yesterday].map((d) => d.toISOString().slice(0, 10));
+
+    const detail: Record<string, { rows: number; covered: number }> = {};
+
+    for (const company of companies) {
+      for (const date of dates) {
+        const result = await this.roadSettingService.computeCoverage(company.id, date);
+        if (result.rows) detail[`${company.code}/${date}`] = result;
+      }
+    }
+
+    return { ok: true, detail: { companies: companies.length, dates, stats: detail } };
+  }
+
+  /** 案件處理進度：每條路修了多少(與巡查點覆蓋率是兩件事) */
+  private async caseProgress(): Promise<TaskOutcome> {
     // 完修以派工單的完工狀態為準；案件狀態沒有「已完修」這個值
     const row = await this.caseRepo
       .createQueryBuilder('c')
@@ -252,7 +306,10 @@ export class TaskService implements OnModuleInit {
 
       const existing = await this.addressRepo.findOne({ where: { patrolCase: { id: c.id } } });
       if (existing) await this.addressRepo.update({ id: existing.id }, { road, address: road, oAddress: road });
-      else await this.addressRepo.save(this.addressRepo.create({ patrolCase: { id: c.id }, road, address: road, oAddress: road }));
+      else
+        await this.addressRepo.save(
+          this.addressRepo.create({ patrolCase: { id: c.id }, road, address: road, oAddress: road })
+        );
 
       await this.caseHistoryService.record({
         caseType: 'CASE_PATROL',
@@ -280,12 +337,36 @@ export class TaskService implements OnModuleInit {
     return { ok: true, detail: { removed: result.affected ?? 0 } };
   }
 
-  /** 儀表板結算：清掉快取，讓隔天第一次開看板拿到的是新的數字 */
+  /**
+   * 儀表板結算。
+   *
+   * 把「這一天每個行政區的里程、案件數、派工狀態」算出來寫進統計表。
+   * 即時算的話要掃整月的軌跡點(每台車每天七千筆)—— 而看板是掛在牆上
+   * 整天刷新的，不該讓每次刷新都付那個成本。
+   *
+   * 重算最近三天而不是只有昨天：派工單的狀態會隨時間變動
+   * (今天完工的單，派工日可能是三天前)，只結算昨天的話，
+   * 前天派出去的單永遠停在「施工中」。
+   *
+   * 結算完清掉看板快取，讓下一次開啟拿到新的數字。
+   */
   private async dashboardSync(): Promise<TaskOutcome> {
-    const companies = await this.companyRepo.find();
-    for (const c of companies) await this.redisService.del(`dashboard:overview:${c.id}`);
+    const companies = await this.companyRepo.find({ where: { isActive: true }, select: { id: true, code: true } });
+    const dates = [0, 1, 2].map((d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10));
 
-    return { ok: true, detail: { companies: companies.length } };
+    let caseRows = 0;
+    let orderRows = 0;
+
+    for (const company of companies) {
+      for (const date of dates) {
+        caseRows += (await this.settlementService.settleCases(company.id, date)).rows;
+        orderRows += (await this.settlementService.settleOrders(company.id, date)).rows;
+      }
+
+      await this.redisService.delByPrefix(`dashboard:overview:${company.id}`);
+    }
+
+    return { ok: true, detail: { companies: companies.length, dates, caseRows, orderRows } };
   }
 
   /** 圖層快取預熱 */

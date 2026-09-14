@@ -5,6 +5,10 @@ import { HttpResponse, type HttpResult } from '@/http/http-response';
 import { RedisService } from '@/redis/redis.service';
 import { PatrolCase } from '@/case-patrol/entities/patrol-case.entity';
 import { WorkOrder } from '@/work-order/entities/work-order.entity';
+import { DailyCheck } from './entities/daily-check.entity';
+import { DashboardCaseStat } from './entities/dashboard-case-stat.entity';
+import { DashboardOrderStat } from './entities/dashboard-order-stat.entity';
+import { DailyCheckQueryDto, SettlementQueryDto } from './dashboard.dto';
 
 const CACHE_TTL_MS = 60_000;
 
@@ -26,8 +30,127 @@ export class DashboardService {
   constructor(
     @InjectRepository(PatrolCase) private readonly caseRepo: Repository<PatrolCase>,
     @InjectRepository(WorkOrder) private readonly workOrderRepo: Repository<WorkOrder>,
+    @InjectRepository(DailyCheck) private readonly dailyCheckRepo: Repository<DailyCheck>,
+    @InjectRepository(DashboardCaseStat) private readonly caseStatRepo: Repository<DashboardCaseStat>,
+    @InjectRepository(DashboardOrderStat) private readonly orderStatRepo: Repository<DashboardOrderStat>,
     private readonly redisService: RedisService
   ) {}
+
+  /**
+   * 每日上傳檢查。
+   *
+   * 督導早上開的第一個畫面。預設看昨天 —— 今天的資料還在進來，
+   * 現在說「這台車今天只上傳三筆」沒有意義。
+   */
+  public async getDailyCheck(dto: DailyCheckQueryDto, companyId: number): Promise<HttpResult> {
+    const date = dto.DATE ?? new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    const qb = this.dailyCheckRepo
+      .createQueryBuilder('d')
+      .leftJoin('d.project', 'p')
+      .select('d.car', 'CAR')
+      .addSelect("COALESCE(p.prj_id, '未歸屬')", 'PRJ_ID')
+      .addSelect("COALESCE(d.district, '未分區')", 'DISTRICT')
+      .addSelect('d.case_count', 'CASE_COUNT')
+      .addSelect('d.image_total', 'IMAGE_TOTAL')
+      .addSelect('d.image_missing', 'IMAGE_MISSING')
+      .addSelect('d.track_points', 'TRACK_POINTS')
+      .addSelect('d.first_at', 'FIRST_AT')
+      .addSelect('d.last_at', 'LAST_AT')
+      .addSelect('d.note', 'NOTE')
+      .addSelect('d.checked_at', 'CHECKED_AT')
+      .where('d.company_id = :companyId', { companyId })
+      .andWhere('d.check_date = :date', { date })
+      .orderBy('d.car', 'ASC')
+      .addOrderBy('d.district', 'ASC');
+
+    if (dto.CAR) qb.andWhere('d.car ILIKE :car', { car: `%${dto.CAR}%` });
+    if (dto.PROJECT_ID) qb.andWhere('d.project_id = :projectId', { projectId: dto.PROJECT_ID });
+    // 「有問題」的定義寫在 SQL 裡而不是撈回來再過濾：不然分頁與計數都會錯
+    if (dto.ABNORMAL_ONLY) qb.andWhere("d.note IS DISTINCT FROM '正常'");
+
+    const rows = await qb.getRawMany<{ CASE_COUNT: number; IMAGE_MISSING: number; TRACK_POINTS: number; NOTE: string }>();
+
+    return HttpResponse.successOrWarn({
+      data: {
+        DATE: date,
+        ROWS: rows,
+        CARS: rows.length,
+        CASE_TOTAL: rows.reduce((s, r) => s + Number(r.CASE_COUNT), 0),
+        IMAGE_MISSING: rows.reduce((s, r) => s + Number(r.IMAGE_MISSING), 0),
+        ABNORMAL: rows.filter((r) => r.NOTE !== '正常').length
+      },
+      isEmpty: (v) => !v?.ROWS?.length,
+      warnMsg: '這一天還沒有檢查結果；檢查由「每日檢查上傳狀態」排程每小時產生'
+    });
+  }
+
+  /**
+   * 結算查詢。
+   *
+   * 讀統計表而不是即時算 —— 這一支是報表與看板的歷史區間在用的，
+   * 而即時算要掃整月的軌跡點。統計由 `dashboardSync` 排程產生。
+   */
+  public async getSettlement(dto: SettlementQueryDto, companyId: number): Promise<HttpResult> {
+    const GROUP_EXPR: Record<string, string> = {
+      DAY: 's.stat_date::text',
+      DISTRICT: "COALESCE(s.district, '未分區')",
+      PROJECT: "COALESCE(p.prj_id, '未歸屬')"
+    };
+    const expr = GROUP_EXPR[dto.GROUP_BY ?? 'DAY'];
+
+    const cases = await this.caseStatRepo
+      .createQueryBuilder('s')
+      .leftJoin('s.project', 'p')
+      .select(expr, 'GROUP_KEY')
+      .addSelect('ROUND(SUM(s.mileage_km)::numeric, 2)::float8', 'MILEAGE_KM')
+      .addSelect('SUM(s.patrol_days)::int', 'PATROL_DAYS')
+      .addSelect('SUM(s.case_total)::int', 'CASE_TOTAL')
+      .addSelect('SUM(s.pothole)::int', 'POTHOLE')
+      .addSelect('SUM(s.alligator_crack)::int', 'ALLIGATOR')
+      .addSelect('SUM(s.linear_crack)::int', 'LINEAR')
+      .addSelect('SUM(s.patch)::int', 'PATCH')
+      .addSelect('SUM(s.manhole_cover)::int', 'COVER')
+      .addSelect('SUM(s.other_crack)::int', 'OTHER')
+      .addSelect('ROUND(SUM(s.area_m2)::numeric, 2)::float8', 'AREA')
+      .where('s.company_id = :companyId', { companyId })
+      .andWhere('s.stat_date BETWEEN :start AND :end', { start: dto.DATE_START, end: dto.DATE_END })
+      .andWhere(dto.PROJECT_ID ? 's.project_id = :projectId' : '1=1', { projectId: dto.PROJECT_ID })
+      .andWhere(dto.DISTRICT ? 's.district = :district' : '1=1', { district: dto.DISTRICT })
+      .groupBy(expr)
+      .orderBy('"GROUP_KEY"', 'ASC')
+      .getRawMany();
+
+    const orders = await this.orderStatRepo
+      .createQueryBuilder('s')
+      .leftJoin('s.project', 'p')
+      .select(expr, 'GROUP_KEY')
+      .addSelect('SUM(s.dispatched)::int', 'DISPATCHED')
+      .addSelect('SUM(s.in_progress)::int', 'IN_PROGRESS')
+      .addSelect('SUM(s.reported)::int', 'REPORTED')
+      .addSelect('SUM(s.done)::int', 'DONE')
+      .addSelect('SUM(s.overdue)::int', 'OVERDUE')
+      .where('s.company_id = :companyId', { companyId })
+      .andWhere('s.stat_date BETWEEN :start AND :end', { start: dto.DATE_START, end: dto.DATE_END })
+      .andWhere(dto.PROJECT_ID ? 's.project_id = :projectId' : '1=1', { projectId: dto.PROJECT_ID })
+      .andWhere(dto.DISTRICT ? 's.district = :district' : '1=1', { district: dto.DISTRICT })
+      .groupBy(expr)
+      .orderBy('"GROUP_KEY"', 'ASC')
+      .getRawMany();
+
+    return HttpResponse.successOrWarn({
+      data: {
+        GROUP_BY: dto.GROUP_BY ?? 'DAY',
+        CASES: cases,
+        ORDERS: orders,
+        TOTAL_KM: Number(cases.reduce((s: number, r: any) => s + Number(r.MILEAGE_KM), 0).toFixed(2)),
+        TOTAL_CASES: cases.reduce((s: number, r: any) => s + Number(r.CASE_TOTAL), 0),
+        TOTAL_DONE: orders.reduce((s: number, r: any) => s + Number(r.DONE), 0)
+      },
+      isEmpty: (v) => !v?.CASES?.length && !v?.ORDERS?.length,
+      warnMsg: '這個區間還沒有結算資料；結算由「儀表板結算」排程每日產生'
+    });
+  }
 
   public async getOverview(companyId: number): Promise<HttpResult> {
     const cacheKey = `dashboard:overview:${companyId}`;
@@ -44,7 +167,15 @@ export class DashboardService {
       this.getRecentCases(companyId)
     ]);
 
-    const data = { KPI: kpi, TREND: trend, BY_TYPE: byType, HOTSPOTS: hotspots, OVERDUE: pending, RECENT: recent, CACHED: false };
+    const data = {
+      KPI: kpi,
+      TREND: trend,
+      BY_TYPE: byType,
+      HOTSPOTS: hotspots,
+      OVERDUE: pending,
+      RECENT: recent,
+      CACHED: false
+    };
     await this.redisService.setJson(cacheKey, data, CACHE_TTL_MS);
 
     return HttpResponse.success({ data });

@@ -15,6 +15,7 @@ import { PatrolCaseStatus } from '@/case-patrol/entities/patrol-case-status.enti
 import { Project } from '@/project/entities/project.entity';
 import { StorageService } from '@/storage/storage.service';
 import { CaseHistoryService } from '@/case-history/case-history.service';
+import { CaseEncodeService } from '@/case-encode/case-encode.service';
 import {
   IMAGE_GROUPS,
   IMAGE_TYPE_DEF,
@@ -29,7 +30,13 @@ import {
 import { CaseEventPublisher } from '@/queue/case-event.publisher';
 import { MaintenanceService } from '@/maintenance/maintenance.service';
 import type { AuthUser } from '@app-types/user-auth.type';
-import { AddWorkOrderDto, DeleteImageDto, UpdateOrderStatusDto, UpdateWorkOrderDto, WorkOrderQueryDto } from './work-order.dto';
+import {
+  AddWorkOrderDto,
+  DeleteImageDto,
+  UpdateOrderStatusDto,
+  UpdateWorkOrderDto,
+  WorkOrderQueryDto
+} from './work-order.dto';
 
 /** 上傳進來的檔案 */
 export type UploadedImage = { fieldname: string; originalname: string; mimetype: string; size: number; buffer: Buffer };
@@ -61,6 +68,7 @@ export class WorkOrderService {
     @InjectRepository(Project) private readonly projectRepo: Repository<Project>,
     private readonly storageService: StorageService,
     private readonly caseHistoryService: CaseHistoryService,
+    private readonly caseEncodeService: CaseEncodeService,
     private readonly maintenanceService: MaintenanceService,
     private readonly eventPublisher: CaseEventPublisher,
     private readonly dataSource: DataSource
@@ -91,8 +99,13 @@ export class WorkOrderService {
 
     const workerIds = await this.resolveWorkerIds(dto.WORKER_USER_ID);
 
-    const { result: saved, caseNum } = await this.withCaseNum(project.prjId, dto.TYPE, user.companyId, (caseNum) =>
-      this.dataSource.transaction(async (manager) => {
+    // 取號在交易裡：號碼與資料一起成敗，建單失敗不會留下一個被跳過的號
+    const { saved, caseNum } = await this.dataSource.transaction(async (manager) => {
+      const caseNum = await this.caseEncodeService.next(
+        { prefix: `${project.prjId}${dto.TYPE}`, seqDate: CaseEncodeService.monthOf(dto.DISPATCH_DATE) },
+        manager
+      );
+      {
         const orderRepo = manager.getRepository(WorkOrder);
 
         const order = await orderRepo.save(
@@ -113,8 +126,12 @@ export class WorkOrderService {
             address: dto.ADDRESS,
             startAddr: dto.START_ADDR,
             endAddr: dto.END_ADDR,
-            startGeom: dto.START_LNG && dto.START_LAT ? { type: 'Point', coordinates: [dto.START_LNG, dto.START_LAT] } : undefined,
-            endGeom: dto.END_LNG && dto.END_LAT ? { type: 'Point', coordinates: [dto.END_LNG, dto.END_LAT] } : undefined,
+            startGeom:
+              dto.START_LNG && dto.START_LAT
+                ? { type: 'Point', coordinates: [dto.START_LNG, dto.START_LAT] }
+                : undefined,
+            endGeom:
+              dto.END_LNG && dto.END_LAT ? { type: 'Point', coordinates: [dto.END_LNG, dto.END_LAT] } : undefined,
             material: dto.MATERIAL,
             materialSize: dto.MATERIAL_SIZE,
             workLength: dto.WORK_LENGTH,
@@ -128,14 +145,18 @@ export class WorkOrderService {
         );
 
         if (workerIds?.length) {
-          await manager.getRepository(WorkOrderUser).insert(workerIds.map((id) => ({ workOrder: { id: order.id }, user: { id } })));
+          await manager
+            .getRepository(WorkOrderUser)
+            .insert(workerIds.map((id) => ({ workOrder: { id: order.id }, user: { id } })));
         }
 
         // 有人員就是施工中、沒人員是待處理 —— 這是這張單在還沒回報前的唯一合法狀態
         await manager.getRepository(WorkOrderStatus).save(
-          manager
-            .getRepository(WorkOrderStatus)
-            .create({ workOrder: { id: order.id }, status: workerIds?.length ? STATUS.WORKING : STATUS.PENDING, updStatusUsr: { id: user.uid } })
+          manager.getRepository(WorkOrderStatus).create({
+            workOrder: { id: order.id },
+            status: workerIds?.length ? STATUS.WORKING : STATUS.PENDING,
+            updStatusUsr: { id: user.uid }
+          })
         );
 
         // 路基改善的取樣資訊：只有 PB 有，所以獨立一張表
@@ -156,18 +177,25 @@ export class WorkOrderService {
           const caseStatusRepo = manager.getRepository(PatrolCaseStatus);
           const cs = await caseStatusRepo.findOne({ where: { patrolCase: { id: dto.CASE_PATROL_ID } } });
 
-          if (cs) await caseStatusRepo.update({ id: cs.id }, { needRepair: 2, updNeedRepairUsr: { id: user.uid } as never, updNeedRepairAt: new Date() });
+          if (cs)
+            await caseStatusRepo.update(
+              { id: cs.id },
+              { needRepair: 2, updNeedRepairUsr: { id: user.uid } as never, updNeedRepairAt: new Date() }
+            );
         }
 
         if (dto.MAINTENANCE_ID) {
           await manager
             .getRepository(MaintenanceStatus)
-            .update({ maintenance: { id: dto.MAINTENANCE_ID } }, { status: MAINTENANCE_STATUS.DISPATCHED, updStatusUsr: { id: user.uid } as never });
+            .update(
+              { maintenance: { id: dto.MAINTENANCE_ID } },
+              { status: MAINTENANCE_STATUS.DISPATCHED, updStatusUsr: { id: user.uid } as never }
+            );
         }
 
-        return order;
-      })
-    );
+        return { saved: order, caseNum };
+      }
+    });
 
     await this.caseHistoryService.record({
       caseType: 'WORK_ORDER',
@@ -183,7 +211,13 @@ export class WorkOrderService {
     // 巡查單那邊也要留一筆：它的狀態剛被這張單改成「已派工」，
     // 不記的話，日後復原這張巡查單會直接跳回開單那天的狀態
     if (dto.MAINTENANCE_ID) {
-      await this.maintenanceService.recordStatusHistory(dto.MAINTENANCE_ID, MAINTENANCE_STATUS.DISPATCHED, 'DISPATCHED', user, clientIp);
+      await this.maintenanceService.recordStatusHistory(
+        dto.MAINTENANCE_ID,
+        MAINTENANCE_STATUS.DISPATCHED,
+        'DISPATCHED',
+        user,
+        clientIp
+      );
     }
 
     this.eventPublisher.workOrderChanged({
@@ -236,7 +270,8 @@ export class WorkOrderService {
       if (value !== undefined) patch[field] = value;
     }
 
-    if (dto.START_LNG && dto.START_LAT) patch.startGeom = { type: 'Point', coordinates: [dto.START_LNG, dto.START_LAT] };
+    if (dto.START_LNG && dto.START_LAT)
+      patch.startGeom = { type: 'Point', coordinates: [dto.START_LNG, dto.START_LAT] };
     if (dto.END_LNG && dto.END_LAT) patch.endGeom = { type: 'Point', coordinates: [dto.END_LNG, dto.END_LAT] };
 
     // 未帶代表不異動；帶了就是整組取代（空陣列即清空指派）
@@ -245,15 +280,22 @@ export class WorkOrderService {
     const addWorkerIds = workerIds?.filter((id) => !currentWorkerIds.includes(id)) ?? [];
     const removeWorkerIds = workerIds ? currentWorkerIds.filter((id) => !workerIds.includes(id)) : [];
 
-    const hasSample = dto.SAMPLE_TAKEN !== undefined || dto.SAMPLE_DATE !== undefined || dto.TEST_ITEM !== undefined || dto.TEST_RESULT !== undefined;
-    if (!Object.keys(patch).length && !hasSample && workerIds === undefined) throw new BadRequestException('沒有要更新的欄位');
+    const hasSample =
+      dto.SAMPLE_TAKEN !== undefined ||
+      dto.SAMPLE_DATE !== undefined ||
+      dto.TEST_ITEM !== undefined ||
+      dto.TEST_RESULT !== undefined;
+    if (!Object.keys(patch).length && !hasSample && workerIds === undefined)
+      throw new BadRequestException('沒有要更新的欄位');
 
     await this.dataSource.transaction(async (manager) => {
       if (Object.keys(patch).length) await manager.getRepository(WorkOrder).update({ id: dto.ID }, patch);
 
       const workerRepo = manager.getRepository(WorkOrderUser);
-      if (removeWorkerIds.length) await workerRepo.delete({ workOrder: { id: dto.ID }, user: { id: In(removeWorkerIds) } });
-      if (addWorkerIds.length) await workerRepo.insert(addWorkerIds.map((id) => ({ workOrder: { id: dto.ID }, user: { id } })));
+      if (removeWorkerIds.length)
+        await workerRepo.delete({ workOrder: { id: dto.ID }, user: { id: In(removeWorkerIds) } });
+      if (addWorkerIds.length)
+        await workerRepo.insert(addWorkerIds.map((id) => ({ workOrder: { id: dto.ID }, user: { id } })));
 
       // 指派了人就代表開工了；還在待處理的單不必等使用者再按一次「開始施工」
       if (workerIds?.length && (current.status?.status ?? STATUS.PENDING) === STATUS.PENDING) {
@@ -324,7 +366,9 @@ export class WorkOrderService {
     }
 
     const status =
-      dto.STATUS === WORK_ORDER_ACTION.RESTORE ? await this.resolveRestore(order) : this.resolveStatus(order, dto.STATUS);
+      dto.STATUS === WORK_ORDER_ACTION.RESTORE
+        ? await this.resolveRestore(order)
+        : this.resolveStatus(order, dto.STATUS);
 
     await this.dataSource.transaction(async (manager) => {
       const statusRepo = manager.getRepository(WorkOrderStatus);
@@ -350,9 +394,21 @@ export class WorkOrderService {
     // 來源巡查單的狀態變動同樣要留歷程 —— 見 create() 的說明
     if (order.maintenance) {
       if (status === STATUS.DELETED) {
-        await this.maintenanceService.recordStatusHistory(order.maintenance.id, MAINTENANCE_STATUS.WATCHING, 'STATUS_CHANGED', user, clientIp);
+        await this.maintenanceService.recordStatusHistory(
+          order.maintenance.id,
+          MAINTENANCE_STATUS.WATCHING,
+          'STATUS_CHANGED',
+          user,
+          clientIp
+        );
       } else if (dto.STATUS === WORK_ORDER_ACTION.RESTORE) {
-        await this.maintenanceService.recordStatusHistory(order.maintenance.id, MAINTENANCE_STATUS.DISPATCHED, 'DISPATCHED', user, clientIp);
+        await this.maintenanceService.recordStatusHistory(
+          order.maintenance.id,
+          MAINTENANCE_STATUS.DISPATCHED,
+          'DISPATCHED',
+          user,
+          clientIp
+        );
       }
     }
 
@@ -367,7 +423,7 @@ export class WorkOrderService {
     await this.caseHistoryService.record({
       caseType: 'WORK_ORDER',
       caseId: dto.ID,
-      action: dto.STATUS === WORK_ORDER_ACTION.RESTORE ? 'RESTORED' : ACTION_MAP[status] ?? 'STATUS_CHANGED',
+      action: dto.STATUS === WORK_ORDER_ACTION.RESTORE ? 'RESTORED' : (ACTION_MAP[status] ?? 'STATUS_CHANGED'),
       snapshot: { ...(await this.snapshot(dto.ID)), status },
       before,
       fromState: String(fromStatus),
@@ -426,7 +482,12 @@ export class WorkOrderService {
     }
 
     const workerStatus = (order.workers?.length ?? 0) > 0 ? STATUS.WORKING : STATUS.PENDING;
-    const previous = await this.caseHistoryService.getPreviousDifferentValue('WORK_ORDER', order.id, STATUS.DELETED, 'status');
+    const previous = await this.caseHistoryService.getPreviousDifferentValue(
+      'WORK_ORDER',
+      order.id,
+      STATUS.DELETED,
+      'status'
+    );
     const parsed = Number(previous);
 
     return Number.isFinite(parsed) && parsed >= workerStatus ? parsed : workerStatus;
@@ -437,17 +498,29 @@ export class WorkOrderService {
    *
    * 刪除時要放得更遠一點：刪掉的單不會再回來，來源案件必須重新可以被派工。
    */
-  private async releaseSource(manager: EntityManager, order: WorkOrder, userId: number, deleted: boolean): Promise<void> {
+  private async releaseSource(
+    manager: EntityManager,
+    order: WorkOrder,
+    userId: number,
+    deleted: boolean
+  ): Promise<void> {
     if (order.casePatrol) {
       const repo = manager.getRepository(PatrolCaseStatus);
       const cs = await repo.findOne({ where: { patrolCase: { id: order.casePatrol.id } } });
-      if (cs) await repo.update({ id: cs.id }, { needRepair: 1, updNeedRepairUsr: { id: userId } as never, updNeedRepairAt: new Date() });
+      if (cs)
+        await repo.update(
+          { id: cs.id },
+          { needRepair: 1, updNeedRepairUsr: { id: userId } as never, updNeedRepairAt: new Date() }
+        );
     }
 
     if (order.maintenance && deleted) {
       await manager
         .getRepository(MaintenanceStatus)
-        .update({ maintenance: { id: order.maintenance.id } }, { status: MAINTENANCE_STATUS.WATCHING, updStatusUsr: { id: userId } as never });
+        .update(
+          { maintenance: { id: order.maintenance.id } },
+          { status: MAINTENANCE_STATUS.WATCHING, updStatusUsr: { id: userId } as never }
+        );
     }
   }
 
@@ -463,7 +536,10 @@ export class WorkOrderService {
       const cs = await repo.findOne({ where: { patrolCase: { id: order.casePatrol.id } } });
 
       if (cs && cs.needRepair === MAINTENANCE_STATUS.DELETED) {
-        await repo.update({ id: cs.id }, { needRepair: 2, updNeedRepairUsr: { id: userId } as never, updNeedRepairAt: new Date() });
+        await repo.update(
+          { id: cs.id },
+          { needRepair: 2, updNeedRepairUsr: { id: userId } as never, updNeedRepairAt: new Date() }
+        );
       }
     }
 
@@ -472,7 +548,10 @@ export class WorkOrderService {
       const ms = await repo.findOne({ where: { maintenance: { id: order.maintenance.id } } });
 
       if (ms && ms.status === MAINTENANCE_STATUS.DELETED) {
-        await repo.update({ id: ms.id }, { status: MAINTENANCE_STATUS.DISPATCHED, updStatusUsr: { id: userId } as never });
+        await repo.update(
+          { id: ms.id },
+          { status: MAINTENANCE_STATUS.DISPATCHED, updStatusUsr: { id: userId } as never }
+        );
       }
     }
   }
@@ -501,8 +580,16 @@ export class WorkOrderService {
    * 同一類型只留一張：驗收要的是「這個階段的照片」，不是同一階段的二十張。
    * 重複上傳會覆寫，而不是長出第二筆 —— 現場重拍是常態。
    */
-  public async uploadImages(id: number, files: UploadedImage[], deleteTypes: string[], user: AuthUser): Promise<HttpResult> {
-    const order = await this.orderRepo.findOne({ where: { id, company: { id: user.companyId } }, relations: { images: true } });
+  public async uploadImages(
+    id: number,
+    files: UploadedImage[],
+    deleteTypes: string[],
+    user: AuthUser
+  ): Promise<HttpResult> {
+    const order = await this.orderRepo.findOne({
+      where: { id, company: { id: user.companyId } },
+      relations: { images: true }
+    });
     if (!order) throw new NotFoundException(`找不到派工單：${id}`);
 
     const before = await this.snapshot(id);
@@ -551,7 +638,10 @@ export class WorkOrderService {
       snapshot: await this.snapshot(id),
       before,
       operatorId: user.uid,
-      note: [uploaded.length ? `上傳 ${uploaded.join('、')}` : '', deleteTypes.length ? `刪除 ${deleteTypes.join('、')}` : '']
+      note: [
+        uploaded.length ? `上傳 ${uploaded.join('、')}` : '',
+        deleteTypes.length ? `刪除 ${deleteTypes.join('、')}` : ''
+      ]
         .filter(Boolean)
         .join('；')
     });
@@ -577,7 +667,10 @@ export class WorkOrderService {
 
   /** 取得照片清單，附短效下載網址 */
   public async listImages(id: number, companyId: number): Promise<HttpResult> {
-    const order = await this.orderRepo.findOne({ where: { id, company: { id: companyId } }, relations: { images: true } });
+    const order = await this.orderRepo.findOne({
+      where: { id, company: { id: companyId } },
+      relations: { images: true }
+    });
     if (!order) throw new NotFoundException(`找不到派工單：${id}`);
 
     const images = await Promise.all(
@@ -715,7 +808,9 @@ export class WorkOrderService {
               [
                 { img: before, title: '施工前' },
                 { img: after, title: '施工後' }
-              ].map(async (t) => (t.img ? { url: await this.storageService.signGetUrl(t.img.imgPath, 600), title: t.title } : null))
+              ].map(async (t) =>
+                t.img ? { url: await this.storageService.signGetUrl(t.img.imgPath, 600), title: t.title } : null
+              )
             )
           ).filter(Boolean)
         };
@@ -780,63 +875,11 @@ export class WorkOrderService {
     }
 
     if (type === 'PD' && maintenanceId != null) {
-      const row = await this.dataSource.getRepository(MaintenanceStatus).findOne({ where: { maintenance: { id: maintenanceId } } });
+      const row = await this.dataSource
+        .getRepository(MaintenanceStatus)
+        .findOne({ where: { maintenance: { id: maintenanceId } } });
       if (!row) throw new BadRequestException('查無巡查單，無法派工');
       if (row.status === MAINTENANCE_STATUS.DELETED) throw new BadRequestException('巡查單已刪除，無法派工');
-    }
-  }
-
-  /**
-   * 派工單號：標案號 + 類型 + 年月 + 四位流水。
-   * 例：DEMO01PA26080001 —— 從單號就看得出是哪個標案、哪種工程、哪個月的第幾張。
-   *
-   * 取**目前最大的流水號 + 1**，不是「筆數 + 1」。
-   * 筆數會在序號有缺口時撞號 —— 而缺口是常態：匯入的資料、
-   * 用別的規則產生的示範資料，都會讓筆數與最大號對不上。
-   *
-   * 併發仍可能兩個請求算到同一號，所以由 {@link withCaseNum} 在唯一鍵衝突時重試。
-   */
-  private async makeCaseNum(prjId: string, type: string, companyId: number): Promise<string> {
-    const ym = new Date().toISOString().slice(2, 7).replace('-', '');
-    const prefix = `${prjId}${type}${ym}`;
-
-    const row = await this.orderRepo
-      .createQueryBuilder('w')
-      .select(`COALESCE(MAX(SUBSTRING(w.case_num FROM ${prefix.length + 1})::int), 0)`, 'max')
-      .where('w.company_id = :companyId', { companyId })
-      // 只算流水號長度正確的：格式不同的舊資料轉成 int 會直接讓查詢失敗
-      .andWhere('w.case_num ~ :pattern', { pattern: `^${prefix}[0-9]{4}$` })
-      .getRawOne<{ max: string }>();
-
-    return `${prefix}${String(Number(row?.max ?? 0) + 1).padStart(4, '0')}`;
-  }
-
-  /**
-   * 編號 + 寫入，撞號就重算一次。
-   *
-   * 兩個人同時派工會算到同一個流水號 —— 資料庫的唯一鍵會擋下第二個，
-   * 但使用者看到的是「duplicate key」這種沒有人看得懂的訊息，
-   * 而他要做的只是再按一次送出。那一次重算由這裡代勞。
-   */
-  private async withCaseNum<T>(
-    prjId: string,
-    type: string,
-    companyId: number,
-    write: (caseNum: string) => Promise<T>
-  ): Promise<{ result: T; caseNum: string }> {
-    const MAX_ATTEMPTS = 5;
-
-    for (let attempt = 1; ; attempt += 1) {
-      const caseNum = await this.makeCaseNum(prjId, type, companyId);
-
-      try {
-        return { result: await write(caseNum), caseNum };
-      } catch (error: any) {
-        const duplicated = error?.code === '23505' && String(error?.detail ?? error?.message).includes('case_num');
-        if (!duplicated || attempt >= MAX_ATTEMPTS) throw error;
-
-        this.logger.warn(`單號 ${caseNum} 撞號，重算(第 ${attempt} 次)`);
-      }
     }
   }
 
@@ -899,7 +942,10 @@ export class WorkOrderService {
       dueDate: w.dueDate ?? null,
       workStartDate: w.workStartDate ?? null,
       workEndDate: w.workEndDate ?? null,
-      workerUserIds: (w.workers ?? []).map((x) => x.user?.id).filter(Boolean).sort(),
+      workerUserIds: (w.workers ?? [])
+        .map((x) => x.user?.id)
+        .filter(Boolean)
+        .sort(),
       workUnit: w.workUnit ?? null,
       county: w.county ?? null,
       district: w.district,
@@ -943,7 +989,10 @@ export class WorkOrderService {
       WORK_END_DATE: w.workEndDate ?? null,
       // 未指派時回一個「未指定人員」而不是空陣列：前端不必為了空狀態各寫一套顯示
       WORKERS: (w.workers ?? []).length
-        ? (w.workers ?? []).map((x) => ({ ID: x.user?.id ?? UNASSIGNED_WORKER.ID, NAME: x.user?.name ?? UNASSIGNED_WORKER.NAME }))
+        ? (w.workers ?? []).map((x) => ({
+            ID: x.user?.id ?? UNASSIGNED_WORKER.ID,
+            NAME: x.user?.name ?? UNASSIGNED_WORKER.NAME
+          }))
         : [{ ID: UNASSIGNED_WORKER.ID, NAME: UNASSIGNED_WORKER.NAME }],
       WORKER_USER_ID: (w.workers ?? []).map((x) => x.user?.id).filter((id): id is number => id != null),
       WORK_UNIT: w.workUnit ?? null,
@@ -969,7 +1018,11 @@ export class WorkOrderService {
       IMAGE_COUNT: w.images?.length ?? 0,
       MISSING_IMAGE_COUNT: missing.length,
       // 已刪除的單不算逾期 —— 逾期清單是要去催的，催一張刪掉的單沒有意義
-      OVERDUE: !!w.dueDate && new Date(w.dueDate) < new Date() && (w.status?.status ?? 0) >= STATUS.PENDING && (w.status?.status ?? 0) < STATUS.FINISHED
+      OVERDUE:
+        !!w.dueDate &&
+        new Date(w.dueDate) < new Date() &&
+        (w.status?.status ?? 0) >= STATUS.PENDING &&
+        (w.status?.status ?? 0) < STATUS.FINISHED
     };
 
     if (!detail) return base;
@@ -992,7 +1045,12 @@ export class WorkOrderService {
       REJECT_REASON: w.status?.rejectReason ?? null,
       UPD_STATUS_USR: w.status?.updStatusUsr?.name ?? null,
       UPD_STATUS_AT: w.status?.updStatusAt ?? null,
-      IMAGES: (w.images ?? []).map((i) => ({ IMG_TYPE: i.imgType, IMG_TYPE_CH: i.imgTypeCh, IMG_NAME: i.imgName, SIZE_BYTES: i.sizeBytes })),
+      IMAGES: (w.images ?? []).map((i) => ({
+        IMG_TYPE: i.imgType,
+        IMG_TYPE_CH: i.imgTypeCh,
+        IMG_NAME: i.imgName,
+        SIZE_BYTES: i.sizeBytes
+      })),
       MISSING_IMAGES: missing.map((m) => ({ TYPE: m.type, NAME: m.name })),
       CREATED_AT: w.createdAt,
       UPDATED_AT: w.updatedAt

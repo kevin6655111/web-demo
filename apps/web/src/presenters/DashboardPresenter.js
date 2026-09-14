@@ -16,8 +16,22 @@ export const DashboardPresenter = {
       // 給主題色鍵而不是色碼：卡片會對顏色做透明度運算，
       // 而那需要真正的色值 —— 由 KpiCard 從主題解析出當前佈景的那一個
       { key: 'TODAY', label: '今日新增', value: kpi.TODAY, unit: '件', tone: 'info', hint: '今天進來的案件數' },
-      { key: 'PENDING', label: '待派工', value: kpi.PENDING, unit: '件', tone: 'warning', hint: '待確認與觀察中的案件' },
-      { key: 'REPAIR_RATE', label: '完修率', value: kpi.REPAIR_RATE, unit: '%', tone: 'success', hint: '派工單已完工 ÷ 全部案件' },
+      {
+        key: 'PENDING',
+        label: '待派工',
+        value: kpi.PENDING,
+        unit: '件',
+        tone: 'warning',
+        hint: '待確認與觀察中的案件'
+      },
+      {
+        key: 'REPAIR_RATE',
+        label: '完修率',
+        value: kpi.REPAIR_RATE,
+        unit: '%',
+        tone: 'success',
+        hint: '派工單已完工 ÷ 全部案件'
+      },
       {
         key: 'AVG_REPAIR_HOURS',
         label: '平均修復',

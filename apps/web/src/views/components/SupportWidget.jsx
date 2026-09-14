@@ -154,7 +154,12 @@ export default function SupportWidget() {
         overflow: 'hidden'
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 2, py: 1.2, borderBottom: (t) => `1px solid ${t.palette.divider}` }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{ px: 2, py: 1.2, borderBottom: (t) => `1px solid ${t.palette.divider}` }}
+      >
         <SupportAgentIcon fontSize="small" color="primary" />
         <Typography variant="subtitle2" sx={{ flex: 1 }}>
           {active ? active.SUBJECT : isAgent ? '客服後台' : '聯絡客服'}
@@ -236,8 +241,19 @@ export default function SupportWidget() {
               <Typography variant="caption" color="text.secondary">
                 有問題嗎？留言給客服
               </Typography>
-              <TextField size="small" label="問題摘要" value={form.SUBJECT} onChange={(e) => setForm({ ...form, SUBJECT: e.target.value })} />
-              <TextField select size="small" label="分類" value={form.CATEGORY} onChange={(e) => setForm({ ...form, CATEGORY: e.target.value })}>
+              <TextField
+                size="small"
+                label="問題摘要"
+                value={form.SUBJECT}
+                onChange={(e) => setForm({ ...form, SUBJECT: e.target.value })}
+              />
+              <TextField
+                select
+                size="small"
+                label="分類"
+                value={form.CATEGORY}
+                onChange={(e) => setForm({ ...form, CATEGORY: e.target.value })}
+              >
                 {Object.entries(CATEGORIES).map(([k, v]) => (
                   <MenuItem key={k} value={k}>
                     {v}

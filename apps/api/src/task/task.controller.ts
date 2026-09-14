@@ -48,7 +48,9 @@ export class TaskController {
     return HttpResponse.success({
       message: status ? '' : 'scheduler 尚未回報狀態',
       // 沒有狀態時回定義清單，讓畫面至少看得到有哪些排程存在
-      data: status ?? Object.entries(TASK_DEFS).map(([key, def]) => ({ KEY: key, LABEL: def.label, CRON: def.cron, ENABLED: null }))
+      data:
+        status ??
+        Object.entries(TASK_DEFS).map(([key, def]) => ({ KEY: key, LABEL: def.label, CRON: def.cron, ENABLED: null }))
     });
   }
 

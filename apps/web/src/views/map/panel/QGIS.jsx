@@ -130,8 +130,7 @@ export default function QGIS() {
       </Button>
 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-        疊圖能回答單一圖層答不了的問題：
-        案件是否集中在低分路段、巡查路線有沒有涵蓋到那些案件、調查點選得對不對。
+        疊圖能回答單一圖層答不了的問題： 案件是否集中在低分路段、巡查路線有沒有涵蓋到那些案件、調查點選得對不對。
       </Typography>
     </Paper>
   );

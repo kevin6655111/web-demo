@@ -184,7 +184,13 @@ class RepairDto {
 
 // ═══ 建立與更新 ═════════════════════════════════════════════════
 
-export class AddMaintenanceDto extends IntersectionType(MaintenanceTypeDto, SurveyInfoDto, DamageDto, MaintenancePlaceDto, RepairDto) {}
+export class AddMaintenanceDto extends IntersectionType(
+  MaintenanceTypeDto,
+  SurveyInfoDto,
+  DamageDto,
+  MaintenancePlaceDto,
+  RepairDto
+) {}
 
 class MaintenanceIdDto {
   @ApiProperty({ example: 5 })

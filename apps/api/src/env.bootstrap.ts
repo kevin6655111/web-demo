@@ -56,7 +56,9 @@ function expand(value: unknown, trail: string): unknown {
   if (Array.isArray(value)) return value.map((item, i) => expand(item, `${trail}[${i}]`));
 
   if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, expand(val, trail ? `${trail}.${key}` : key)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, val]) => [key, expand(val, trail ? `${trail}.${key}` : key)])
+    );
   }
 
   return value;
@@ -79,7 +81,9 @@ if (missing.length > 0) {
       : `No .env found (searched upward from ${path.dirname(configPath)}). Create one first: cp .env.example .env`;
 
   throw new Error(
-    `${file} needs the following environment variables but they are unset:\n` + missing.map((m) => `  - ${m}`).join('\n') + `\n${where}`
+    `${file} needs the following environment variables but they are unset:\n` +
+      missing.map((m) => `  - ${m}`).join('\n') +
+      `\n${where}`
   );
 }
 

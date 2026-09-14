@@ -30,7 +30,7 @@ export class ReportProcessor extends WorkerHost {
   }
 
   async process(job: Job<ReportJobPayload>): Promise<{ rowCount: number }> {
-    const { reportId, companyId, format, params } = job.data;
+    const { reportId, companyId, kind, format, params } = job.data;
 
     const record = await this.reportRepo.findOne({ where: { id: reportId } });
     if (!record) {
@@ -44,17 +44,17 @@ export class ReportProcessor extends WorkerHost {
     await this.reportRepo.update({ id: reportId }, { state: 'RUNNING', error: null as unknown as undefined });
 
     try {
-      const built = await this.reportBuilderService.build(format, companyId, params);
+      const built = await this.reportBuilderService.build(kind, format, companyId, params);
       const fileKey = await this.storageService.putReport(reportId, format, built.buffer);
 
       await this.reportRepo.update({ id: reportId }, { state: 'DONE', fileKey, rowCount: built.rowCount });
-      this.eventBus.emit(EVENT.REPORT_DONE, { companyId, reportId, format, state: 'DONE', rowCount: built.rowCount });
+      this.eventBus.emit(EVENT.REPORT_DONE, { companyId, reportId, kind, format, state: 'DONE', rowCount: built.rowCount });
 
       return { rowCount: built.rowCount };
     } catch (error: any) {
       // 失敗要寫回資料庫：使用者在畫面上看得到「失敗」比一直轉圈好
       await this.reportRepo.update({ id: reportId }, { state: 'FAILED', error: String(error?.message ?? error) });
-      this.eventBus.emit(EVENT.REPORT_DONE, { companyId, reportId, format, state: 'FAILED', rowCount: 0 });
+      this.eventBus.emit(EVENT.REPORT_DONE, { companyId, reportId, kind, format, state: 'FAILED', rowCount: 0 });
       throw error;
     }
   }

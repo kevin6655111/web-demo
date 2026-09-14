@@ -1,8 +1,20 @@
-import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Unique, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  Unique,
+  UpdateDateColumn
+} from 'typeorm';
 import { Company } from '@entities/company.entity';
 import { User } from '@entities/user.entity';
 import { Project } from '@/project/entities/project.entity';
 import { SurveyCase } from './survey-case.entity';
+import { SurveyOrderDetail } from './survey-order-detail.entity';
 
 import { SURVEY_ORDER_STATE_DEF, keysOf, type SurveyOrderState } from '@road-patrol/shared';
 
@@ -56,6 +68,9 @@ export class SurveyOrder {
 
   @OneToMany(() => SurveyCase, (c) => c.order)
   cases!: SurveyCase[];
+
+  @OneToMany(() => SurveyOrderDetail, (d) => d.order)
+  details!: SurveyOrderDetail[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

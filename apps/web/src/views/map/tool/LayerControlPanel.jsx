@@ -1,4 +1,15 @@
-import { Box, Divider, IconButton, Slider, Stack, Switch, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
+import {
+  Box,
+  Divider,
+  IconButton,
+  Slider,
+  Stack,
+  Switch,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography
+} from '@mui/material';
 import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong';
 import { useMapLayers } from '../../../context/MapContext';
 
@@ -31,7 +42,9 @@ export default function LayerControlPanel() {
     );
   }
 
-  const grouped = GROUP_ORDER.map((g) => ({ ...g, items: layers.filter((l) => l.group === g.key) })).filter((g) => g.items.length);
+  const grouped = GROUP_ORDER.map((g) => ({ ...g, items: layers.filter((l) => l.group === g.key) })).filter(
+    (g) => g.items.length
+  );
 
   const ungrouped = layers.filter((l) => !GROUP_ORDER.some((g) => g.key === l.group));
   if (ungrouped.length) grouped.push({ key: 'other', label: '其他', hint: '', items: ungrouped });
@@ -55,7 +68,15 @@ export default function LayerControlPanel() {
             {group.items.map((l) => (
               <Box key={l.key}>
                 <Stack direction="row" alignItems="center" spacing={1}>
-                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: l.color ?? 'primary.main', flexShrink: 0 }} />
+                  <Box
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      bgcolor: l.color ?? 'primary.main',
+                      flexShrink: 0
+                    }}
+                  />
 
                   <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
                     {l.label}

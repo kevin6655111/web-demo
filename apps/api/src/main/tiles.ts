@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { TilesAppModule } from '@/tiles.module';
+import { TilesAppModule } from './tiles.module';
 
 /** tiles 行程：只服務圖層，nginx 會把 /api/tiles/ 導到這裡 */
 (async () => {

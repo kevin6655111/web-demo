@@ -54,7 +54,9 @@ export class ProjectController {
   @Get('project/area')
   @ApiOperation({
     summary: '行政區清單',
-    description: ['縣市／行政區的連動下拉用；帶 `COUNTY` 只回該縣市的行政區。', '', '所需權限：`PROJECT.READ`'].join('\n')
+    description: ['縣市／行政區的連動下拉用；帶 `COUNTY` 只回該縣市的行政區。', '', '所需權限：`PROJECT.READ`'].join(
+      '\n'
+    )
   })
   @ApiQuery({ name: 'COUNTY', required: false, example: '臺中市' })
   @ApiResponse({ status: 200, description: '查詢成功' })
@@ -120,10 +122,16 @@ export class ProjectController {
 
   /** 變更狀態 */
   @Put('project/state')
-  @ApiOperation({ summary: '變更標案狀態', description: ['草稿 → 執行中 → 結案。', '', '所需權限：`PROJECT.UPDATE`'].join('\n') })
+  @ApiOperation({
+    summary: '變更標案狀態',
+    description: ['草稿 → 執行中 → 結案。', '', '所需權限：`PROJECT.UPDATE`'].join('\n')
+  })
   @ApiBody({
     type: UpdateProjectStateDto,
-    examples: { activate: { summary: '開始執行', value: { ID: 1, STATE: 'ACTIVE' } }, close: { summary: '結案', value: { ID: 1, STATE: 'CLOSED' } } }
+    examples: {
+      activate: { summary: '開始執行', value: { ID: 1, STATE: 'ACTIVE' } },
+      close: { summary: '結案', value: { ID: 1, STATE: 'CLOSED' } }
+    }
   })
   @ApiResponse({ status: 200, description: '狀態已更新' })
   @ApiCommonErrors({ notFound: '找不到該標案' })
@@ -154,7 +162,10 @@ export class ProjectController {
       company: { summary: '加入協力廠商', value: { PROJECT_ID: 1, KIND: 'COMPANY', TARGET_ID: 2, ROLE: 'SUB' } },
       vehicle: { summary: '配置巡查車', value: { PROJECT_ID: 1, KIND: 'VEHICLE', TARGET_ID: 3 } },
       section: { summary: '設定工務段轄區', value: { PROJECT_ID: 1, KIND: 'SECTION', TARGET_ID: 1, AREA_IDS: [1, 2] } },
-      disable: { summary: '停用（保留歷史）', value: { PROJECT_ID: 1, KIND: 'VEHICLE', TARGET_ID: 3, IS_ACTIVE: false } }
+      disable: {
+        summary: '停用（保留歷史）',
+        value: { PROJECT_ID: 1, KIND: 'VEHICLE', TARGET_ID: 3, IS_ACTIVE: false }
+      }
     }
   })
   @ApiResponse({ status: 200, description: '關聯已更新' })

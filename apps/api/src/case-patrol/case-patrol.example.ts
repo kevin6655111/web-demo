@@ -52,7 +52,15 @@ export const ADD_CASE_EXAMPLES: SwaggerExamples = {
 /** [PUT patrol/case/status]：狀態變更的請求範例 */
 export const UPDATE_STATUS_EXAMPLES: SwaggerExamples = {
   pass: { summary: '二篩通過', description: '通過二篩的案件才會進入修繕流程', value: { ID: 12, STATUS: 1 } },
-  misjudge: { summary: '判定為誤判', description: 'AI 判讀有誤；誤判與刪除分開記，模型調校時要分得出來', value: { ID: 12, STATUS: 4 } },
+  misjudge: {
+    summary: '判定為誤判',
+    description: 'AI 判讀有誤；誤判與刪除分開記，模型調校時要分得出來',
+    value: { ID: 12, STATUS: 4 }
+  },
   needRepair: { summary: '判定需修繕', value: { ID: 12, NEED_REPAIR: 1 } },
-  review: { summary: '主管複審', description: '帶 `AS_ADMIN` 會記在複審欄位而不是覆蓋二篩人員', value: { ID: 12, STATUS: 1, AS_ADMIN: true } }
+  review: {
+    summary: '主管複審',
+    description: '帶 `AS_ADMIN` 會記在複審欄位而不是覆蓋二篩人員',
+    value: { ID: 12, STATUS: 1, AS_ADMIN: true }
+  }
 };

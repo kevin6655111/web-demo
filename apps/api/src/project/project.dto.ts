@@ -1,6 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Length, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  MaxLength,
+  Min
+} from 'class-validator';
 import { PROJECT_STATE } from './entities/project.entity';
 import { ToArray, ToNumberArray } from '@/case-patrol/case-patrol.dto';
 
@@ -79,7 +91,11 @@ export class CreateProjectDto {
   @MaxLength(30)
   PROPRIETOR!: string;
 
-  @ApiPropertyOptional({ example: 2, description: '業主等級：1 中央 / 2 直轄市 / 3 縣市 / 4 鄉鎮；影響報表格式與上傳規則', default: 3 })
+  @ApiPropertyOptional({
+    example: 2,
+    description: '業主等級：1 中央 / 2 直轄市 / 3 縣市 / 4 鄉鎮；影響報表格式與上傳規則',
+    default: 3
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -142,7 +158,11 @@ export class UpsertProjectRelationDto {
   @IsInt()
   TARGET_ID!: number;
 
-  @ApiPropertyOptional({ enum: ['MAIN', 'SUB'], example: 'SUB', description: '公司角色：主辦或協力；KIND=COMPANY 時有效' })
+  @ApiPropertyOptional({
+    enum: ['MAIN', 'SUB'],
+    example: 'SUB',
+    description: '公司角色：主辦或協力；KIND=COMPANY 時有效'
+  })
   @IsOptional()
   @IsIn(['MAIN', 'SUB'])
   ROLE?: string;

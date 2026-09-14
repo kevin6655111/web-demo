@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UploadedFiles } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  UploadedFiles
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { HttpResult } from '@/http/http-response';
@@ -87,10 +100,18 @@ export class MaintenanceController {
     ].join('\n')
   })
   @ApiResponse({ status: 200, description: '已更新' })
-  @ApiCommonErrors({ badRequest: '沒有帶任何要更新的欄位', notFound: '找不到巡查單', conflict: '已刪除的巡查單不可修改' })
+  @ApiCommonErrors({
+    badRequest: '沒有帶任何要更新的欄位',
+    notFound: '找不到巡查單',
+    conflict: '已刪除的巡查單不可修改'
+  })
   @Audit({ action: 'MAINTENANCE', keys: ['ID', 'TYPE', 'DTYPE', 'MATERIAL'] })
   @RequireAction(ACTION.MAINTENANCE.UPDATE)
-  async handleUpdate(@Body() dto: UpdateMaintenanceDto, @User() user: AuthUser, @Req() req: Request): Promise<HttpResult> {
+  async handleUpdate(
+    @Body() dto: UpdateMaintenanceDto,
+    @User() user: AuthUser,
+    @Req() req: Request
+  ): Promise<HttpResult> {
     return await this.maintenanceService.update(dto, user, req.ip);
   }
 
@@ -124,7 +145,11 @@ export class MaintenanceController {
     '-1': ACTION.MAINTENANCE.DELETE,
     [String(WORK_ORDER_ACTION.RESTORE)]: ACTION.MAINTENANCE.APPROVE
   })
-  async handleUpdateStatus(@Body() dto: UpdateMaintenanceStatusDto, @User() user: AuthUser, @Req() req: Request): Promise<HttpResult> {
+  async handleUpdateStatus(
+    @Body() dto: UpdateMaintenanceStatusDto,
+    @User() user: AuthUser,
+    @Req() req: Request
+  ): Promise<HttpResult> {
     return await this.maintenanceService.updateStatus(dto, user, req.ip);
   }
 
@@ -150,7 +175,9 @@ export class MaintenanceController {
       properties: {
         ID: { type: 'integer', example: 5, description: '巡查單 id' },
         IMAGE_DELETE: { type: 'string', example: '["IMG_AFTER"]', description: '要刪除的照片類型' },
-        ...Object.fromEntries(IMAGE_TYPE_DEF.map((d) => [d.type, { type: 'string', format: 'binary', description: d.name }]))
+        ...Object.fromEntries(
+          IMAGE_TYPE_DEF.map((d) => [d.type, { type: 'string', format: 'binary', description: d.name }])
+        )
       },
       required: ['ID']
     }
@@ -173,7 +200,12 @@ export class MaintenanceController {
     try {
       deleteTypes = imageDelete ? JSON.parse(imageDelete) : [];
     } catch {
-      deleteTypes = imageDelete ? imageDelete.split(',').map((s) => s.trim()).filter(Boolean) : [];
+      deleteTypes = imageDelete
+        ? imageDelete
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
     }
 
     return await this.maintenanceService.uploadImages(id, flat, deleteTypes, user);
@@ -200,7 +232,10 @@ export class MaintenanceController {
 
   /** 刪除照片 */
   @Delete('maintenance/image')
-  @ApiOperation({ summary: '刪除巡查單照片', description: ['物件儲存上的檔案一併刪除。', '', '所需權限：`MAINTENANCE.UPDATE`'].join('\n') })
+  @ApiOperation({
+    summary: '刪除巡查單照片',
+    description: ['物件儲存上的檔案一併刪除。', '', '所需權限：`MAINTENANCE.UPDATE`'].join('\n')
+  })
   @ApiResponse({ status: 200, description: '已刪除' })
   @ApiCommonErrors({ notFound: '找不到該照片' })
   @Audit({ action: 'MAINTENANCE', keys: ['ID', 'IMG_TYPE'] })
@@ -233,7 +268,11 @@ export class MaintenanceController {
   @Get('maintenance/:ID')
   @ApiOperation({
     summary: '巡查單詳情',
-    description: ['含座標、巡修內容、照片清單與缺件、派工單狀態、狀態變更者與時間。', '', '所需權限：`MAINTENANCE.READ`'].join('\n')
+    description: [
+      '含座標、巡修內容、照片清單與缺件、派工單狀態、狀態變更者與時間。',
+      '',
+      '所需權限：`MAINTENANCE.READ`'
+    ].join('\n')
   })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors({ notFound: '找不到巡查單' })

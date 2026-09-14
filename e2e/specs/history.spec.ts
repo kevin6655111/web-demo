@@ -50,9 +50,12 @@ test.describe('版本歷程與還原', () => {
 
     // 比較兩版
     const diff = await (
-      await request.get(`${API}/history/CASE_PATROL/${id}/diff?CASE_TYPE=CASE_PATROL&FROM=${latest.VERSION - 1}&TO=${latest.VERSION}`, {
-        headers
-      })
+      await request.get(
+        `${API}/history/CASE_PATROL/${id}/diff?CASE_TYPE=CASE_PATROL&FROM=${latest.VERSION - 1}&TO=${latest.VERSION}`,
+        {
+          headers
+        }
+      )
     ).json();
     expect(diff.data.CHANGES).toHaveProperty('degree');
 

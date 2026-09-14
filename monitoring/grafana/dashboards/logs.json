@@ -1,10 +1,7 @@
 {
   "uid": "patrol-logs",
-  "title": "道路巡查 Demo — 日誌監控",
-  "tags": [
-    "patrol",
-    "logs"
-  ],
+  "title": "道路巡查 Demo — 服務監控",
+  "tags": ["patrol", "loki"],
   "timezone": "Asia/Taipei",
   "refresh": "30s",
   "time": {
@@ -15,6 +12,7 @@
     "list": [
       {
         "name": "container",
+        "label": "服務",
         "type": "query",
         "datasource": {
           "type": "loki",
@@ -25,52 +23,83 @@
         "includeAll": true,
         "multi": true,
         "current": {
-          "text": "All",
-          "value": "$__all"
+          "text": ["All"],
+          "value": ["$__all"]
         },
-        "label": "服務"
+        "allValue": "patrol-.*"
       },
       {
         "name": "search",
-        "type": "textbox",
         "label": "關鍵字",
+        "type": "textbox",
         "query": "",
         "current": {
           "text": "",
           "value": ""
-        }
+        },
+        "description": "篩選日誌內容；可填單號、帳號或 emoji 標記"
       }
     ]
   },
+  "schemaVersion": 39,
+  "version": 2,
   "panels": [
     {
-      "id": 1,
-      "title": "錯誤數 (5xx / ERROR)",
-      "type": "stat",
+      "type": "row",
+      "title": "服務健康",
       "gridPos": {
-        "h": 4,
-        "w": 6,
+        "h": 1,
+        "w": 24,
         "x": 0,
         "y": 0
       },
-      "description": "這段時間內出現的錯誤行數。持續上升代表有東西壞了，不是流量問題。",
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "錯誤 (ERROR / 5xx)",
+      "description": "任何服務寫出的錯誤層級日誌。持續大於 0 時，先看下方的「錯誤來自哪個服務」。",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
       "targets": [
         {
-          "expr": "sum(count_over_time({container=~\"patrol-.*\"} |~ \"(?i)error\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"(?i)error|❌\" [$__auto]))",
           "refId": "A",
           "queryType": "range"
         }
       ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
           "color": {
             "mode": "thresholds"
           },
           "thresholds": {
+            "mode": "absolute",
             "steps": [
               {
                 "color": "green",
@@ -91,33 +120,49 @@
       }
     },
     {
-      "id": 2,
-      "title": "認證失敗 (401)",
       "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 0
-      },
-      "description": "突然暴增通常是密碼噴灑攻擊，而不是使用者忘記密碼。",
+      "title": "認證失敗 (401)",
+      "description": "連續失敗 5 次會鎖定帳號 15 分鐘。突然升高通常是密碼過期或自動化腳本沒更新憑證。",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
       "targets": [
         {
-          "expr": "sum(count_over_time({container=~\"patrol-.*\"} |~ \"→ 401\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"401\" [$__auto]))",
           "refId": "A",
           "queryType": "range"
         }
       ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
           "color": {
             "mode": "thresholds"
           },
           "thresholds": {
+            "mode": "absolute",
             "steps": [
               {
                 "color": "green",
@@ -125,11 +170,7 @@
               },
               {
                 "color": "orange",
-                "value": 10
-              },
-              {
-                "color": "red",
-                "value": 50
+                "value": 5
               }
             ]
           }
@@ -138,64 +179,57 @@
       }
     },
     {
-      "id": 3,
-      "title": "權限不足 (403)",
       "type": "stat",
+      "title": "權限不足 (403)",
+      "description": "使用者看得到卻按不動。持續出現代表導覽或按鈕的權限判斷與後端不一致。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 0
-      },
-      "description": "持續出現代表某個角色的權限設定與實際工作對不上。",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "y": 1
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({container=~\"patrol-.*\"} |~ \"→ 403\" [$__auto]))",
-          "refId": "A",
-          "queryType": "range"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "title": "排程失敗",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "description": "排程沒有人盯著，失敗只會出現在這裡。",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "expr": "sum(count_over_time({container=\"patrol-scheduler\"} |~ \"❌ fail\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"403\" [$__auto]))",
           "refId": "A",
           "queryType": "range"
         }
       ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
       "fieldConfig": {
         "defaults": {
+          "unit": "short",
           "color": {
             "mode": "thresholds"
           },
           "thresholds": {
+            "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
               },
               {
-                "color": "red",
-                "value": 1
+                "color": "orange",
+                "value": 5
               }
             ]
           }
@@ -204,124 +238,783 @@
       }
     },
     {
-      "id": 5,
-      "title": "各服務日誌量",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 4
-      },
-      "description": "日誌量突然歸零，往往比錯誤變多更值得警覺 —— 那代表服務已經沒在跑了。",
+      "type": "stat",
+      "title": "排程失敗",
+      "description": "排程只有一份實例在跑，失敗不會有其他實例補上。",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
       "targets": [
         {
-          "expr": "sum by (container) (count_over_time({container=~\"$container\"} [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"❌ fail:\" [$__auto]))",
           "refId": "A",
           "queryType": "range"
         }
-      ]
+      ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
     },
     {
-      "id": 6,
-      "title": "錯誤與警告趨勢",
       "type": "timeseries",
+      "title": "錯誤來自哪個服務",
+      "description": "錯誤依服務分佈。六個行程分開部署的用意就在這裡 —— 壞掉的是哪一個一眼看得出來。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (container) (count_over_time({container=~\"$container\"} |~ \"(?i)error|❌\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "各服務日誌量",
+      "description": "日誌量突然歸零，代表該行程已停止寫入 —— 這比錯誤數上升更值得注意。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 5
       },
-      "description": "",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (container) (count_over_time({container=~\"$container\"} [$__auto]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "案件流入",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "案件建立 vs 冪等回放",
+      "description": "車機在收不到回應時會重送。回放數偏高是正常的；回放數為零反而可疑 —— 那代表去重沒有生效。",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
-      "targets": [
-        {
-          "expr": "sum by (container) (count_over_time({container=~\"patrol-.*\"} |~ \"(?i)(error|warn)\" [$__auto]))",
-          "refId": "A",
-          "queryType": "range"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "案件建立 vs 冪等回放",
-      "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
-      },
-      "description": "兩條線的比例就是上游重送率。重送多不一定是壞事，代表冪等層正在發揮作用。",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "y": 14
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({container=\"patrol-api\"} |~ \"已派工\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"📦 已派工\" [$__auto]))",
           "refId": "A",
+          "queryType": "range",
           "legendFormat": "新案件"
         },
         {
-          "expr": "sum(count_over_time({container=\"patrol-api\"} |~ \"回放冪等結果\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"♻️\" [$__auto]))",
           "refId": "B",
-          "legendFormat": "重送被去重"
+          "queryType": "range",
+          "legendFormat": "冪等回放"
         }
-      ]
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
     },
     {
-      "id": 8,
-      "title": "佇列處理結果",
       "type": "timeseries",
+      "title": "佇列處理結果",
+      "description": "佇列會重試，因此單次失敗不等於工作沒完成。要看的是失敗是否持續累積。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
-      },
-      "description": "",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "y": 14
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({container=~\"patrol-worker.*\"} |~ \"✅\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"✅\" [$__auto]))",
           "refId": "A",
-          "legendFormat": "完成"
+          "queryType": "range",
+          "legendFormat": "成功"
         },
         {
-          "expr": "sum(count_over_time({container=~\"patrol-worker.*\"} |~ \"❌\" [$__auto]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"❌\" [$__auto]))",
           "refId": "B",
+          "queryType": "range",
           "legendFormat": "失敗"
         }
-      ]
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
     },
     {
-      "id": 9,
-      "title": "即時日誌",
-      "type": "logs",
+      "type": "row",
+      "title": "通知",
       "gridPos": {
-        "h": 12,
+        "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 22
       },
-      "description": "用上方的「關鍵字」變數過濾；例如輸入案件編號可以追出它經過了哪些服務。",
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "郵件已送出",
+      "description": "實際透過 SMTP 送出的封數。",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 23
+      },
       "targets": [
         {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"✅ #\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "郵件記錄模式",
+      "description": "未設定 SMTP 時的封數 —— 內容已保存於 mail_jobs，但未實際寄出。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 23
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"📭\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "郵件失敗",
+      "description": "SMTP 故障多半是暫時的，佇列會重試五次。持續失敗才需要介入。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 23
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"❌ #\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "background_solid",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "郵件與推播趨勢",
+      "description": "排入與處理的落差就是佇列積壓量。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"📧\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "郵件排入"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"📭|✅ #\" [$__auto]))",
+          "refId": "B",
+          "queryType": "range",
+          "legendFormat": "郵件處理"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"📵\" [$__auto]))",
+          "refId": "C",
+          "queryType": "range",
+          "legendFormat": "推播（記錄模式）"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "WebSocket 推播",
+      "description": "即時看板的更新來源。全域守衛若未排除非 HTTP 情境，這條線會直接歸零。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"📣\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "廣播則數"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "排程",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "排程執行結果",
+      "description": "11 支排程的執行結果。排程只有一份實例，失敗不會有其他實例補上。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"✅ done:\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "成功"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\"$container\"} |~ \"❌ fail:\" [$__auto]))",
+          "refId": "B",
+          "queryType": "range",
+          "legendFormat": "失敗"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "API 請求量",
+      "description": "依服務分列的請求量。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (container) (count_over_time({container=~\"$container\"} |~ \"🌐\" [$__auto]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": ["sum", "max"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "row",
+      "title": "日誌",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "即時日誌",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "上方的服務與關鍵字篩選器同時作用於此。查特定案件時，把單號貼進關鍵字欄。",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "expr": "{container=~\"$container\"} |~ \"$search\"",
           "refId": "A",
           "queryType": "range"
@@ -331,10 +1024,10 @@
         "showTime": true,
         "wrapLogMessage": true,
         "sortOrder": "Descending",
-        "enableLogDetails": true
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
       }
     }
-  ],
-  "schemaVersion": 39,
-  "version": 1
+  ]
 }

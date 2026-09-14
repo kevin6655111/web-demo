@@ -1,4 +1,16 @@
-import { Box, Checkbox, FormControlLabel, InputAdornment, ListItemText, MenuItem, OutlinedInput, Select, Stack, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  Checkbox,
+  FormControlLabel,
+  InputAdornment,
+  ListItemText,
+  MenuItem,
+  OutlinedInput,
+  Select,
+  Stack,
+  TextField,
+  Typography
+} from '@mui/material';
 import { FormControl, FormHelperText, InputLabel } from '@mui/material';
 import SearchableSelect from './SearchableSelect';
 
@@ -32,7 +44,13 @@ export function FormFields({ fields, value, errors = {}, onChange, columns = 2 }
 
         if (f.type === 'select' || f.type === 'multi') {
           return (
-            <FormControl key={f.key} size="small" fullWidth error={!!errors[f.key]} sx={f.full ? { gridColumn: { sm: '1 / -1' } } : undefined}>
+            <FormControl
+              key={f.key}
+              size="small"
+              fullWidth
+              error={!!errors[f.key]}
+              sx={f.full ? { gridColumn: { sm: '1 / -1' } } : undefined}
+            >
               <InputLabel shrink id={`ff-${f.key}`}>
                 {f.label}
               </InputLabel>
@@ -57,7 +75,9 @@ export function FormFields({ fields, value, errors = {}, onChange, columns = 2 }
             <FormControlLabel
               key={f.key}
               sx={f.full ? { gridColumn: { sm: '1 / -1' } } : undefined}
-              control={<Checkbox size="small" checked={!!value[f.key]} onChange={(e) => set(f.key, e.target.checked)} />}
+              control={
+                <Checkbox size="small" checked={!!value[f.key]} onChange={(e) => set(f.key, e.target.checked)} />
+              }
               label={<Typography variant="body2">{f.label}</Typography>}
             />
           );

@@ -52,6 +52,9 @@ export class GeoController {
   @ApiCommonErrors()
   @RequireAction(ACTION.CASE.READ)
   async handleAutoComplete(@Query('KEYWORD') keyword: string, @User() user: AuthUser): Promise<HttpResult> {
-    return HttpResponse.successOrWarn({ data: await this.geoService.autoComplete(keyword, user.companyId), warnMsg: '查無相符地點' });
+    return HttpResponse.successOrWarn({
+      data: await this.geoService.autoComplete(keyword, user.companyId),
+      warnMsg: '查無相符地點'
+    });
   }
 }

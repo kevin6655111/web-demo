@@ -25,7 +25,14 @@ describe('DashboardPresenter', () => {
   });
 
   describe('mergeIncoming', () => {
-    const incoming = { caseId: 7, externalId: 'E-7', crackType: 'Potholes', detectedAt: '2026-08-28T10:00:00Z', lng: 120, lat: 24 };
+    const incoming = {
+      caseId: 7,
+      externalId: 'E-7',
+      crackType: 'Potholes',
+      detectedAt: '2026-08-28T10:00:00Z',
+      lng: 120,
+      lat: 24
+    };
 
     it('新案件插在最前面並標記為新', () => {
       const result = DashboardPresenter.mergeIncoming([{ ID: 1 }], incoming);
@@ -46,13 +53,19 @@ describe('DashboardPresenter', () => {
 
   describe('overdue', () => {
     it('超過一天用天數表示，未滿一天用小時', () => {
-      const [a, b] = DashboardPresenter.overdue([{ ID: 1, OVERDUE_HOURS: 50 }, { ID: 2, OVERDUE_HOURS: 5 }]);
+      const [a, b] = DashboardPresenter.overdue([
+        { ID: 1, OVERDUE_HOURS: 50 },
+        { ID: 2, OVERDUE_HOURS: 5 }
+      ]);
       expect(a.OVERDUE_TEXT).toBe('逾期 2 天');
       expect(b.OVERDUE_TEXT).toBe('逾期 5 小時');
     });
 
     it('逾期三天以上標記為嚴重', () => {
-      const [a, b] = DashboardPresenter.overdue([{ ID: 1, OVERDUE_HOURS: 72 }, { ID: 2, OVERDUE_HOURS: 47 }]);
+      const [a, b] = DashboardPresenter.overdue([
+        { ID: 1, OVERDUE_HOURS: 72 },
+        { ID: 2, OVERDUE_HOURS: 47 }
+      ]);
       expect(a.SEVERE).toBe(true);
       expect(b.SEVERE).toBe(false);
     });
@@ -62,7 +75,10 @@ describe('DashboardPresenter', () => {
     it('比例以最大值為基準，且不會除以零', () => {
       expect(DashboardPresenter.hotspots([])).toEqual([]);
 
-      const rows = DashboardPresenter.hotspots([{ ROAD: 'A', COUNT: 10 }, { ROAD: 'B', COUNT: 5 }]);
+      const rows = DashboardPresenter.hotspots([
+        { ROAD: 'A', COUNT: 10 },
+        { ROAD: 'B', COUNT: 5 }
+      ]);
       expect(rows[0].RATIO).toBe(1);
       expect(rows[1].RATIO).toBe(0.5);
     });

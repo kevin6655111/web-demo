@@ -59,7 +59,10 @@ export class CoreController {
 
   /** 發布公告 */
   @Post('core/announcement')
-  @ApiOperation({ summary: '發布或更新公告', description: ['帶 `ID` 是更新。不帶 `START_AT` 表示立即生效。', '', '所需權限：`ACCOUNT.UPDATE`'].join('\n') })
+  @ApiOperation({
+    summary: '發布或更新公告',
+    description: ['帶 `ID` 是更新。不帶 `START_AT` 表示立即生效。', '', '所需權限：`ACCOUNT.UPDATE`'].join('\n')
+  })
   @ApiBody({
     type: UpsertAnnouncementDto,
     examples: {

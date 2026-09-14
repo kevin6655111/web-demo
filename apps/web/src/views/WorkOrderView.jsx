@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Chip, LinearProgress, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Chip,
+  LinearProgress,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from '@mui/material';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import QueryForm from './components/query/QueryForm';
@@ -56,7 +66,10 @@ export default function WorkOrderView() {
     setLoading(true);
     try {
       // 看板要一次看到所有欄位，所以不分頁；表格照使用者選的頁大小
-      const params = mode === 'board' ? { SIZE: 200, ...toQueryParams(applied) } : { PAGE: page + 1, SIZE: size, ...toQueryParams(applied) };
+      const params =
+        mode === 'board'
+          ? { SIZE: 200, ...toQueryParams(applied) }
+          : { PAGE: page + 1, SIZE: size, ...toQueryParams(applied) };
 
       const res = await workOrderApi.list(params);
       setRows(res.data?.ROWS ?? []);
@@ -103,7 +116,9 @@ export default function WorkOrderView() {
       {
         key: 'STATUS',
         label: '狀態',
-        render: (v) => <StatusChip label={CasePresenter.workOrderLabel(v)} color={WORK_ORDER_COLOR[v] ?? 'var(--c-neutral)'} />
+        render: (v) => (
+          <StatusChip label={CasePresenter.workOrderLabel(v)} color={WORK_ORDER_COLOR[v] ?? 'var(--c-neutral)'} />
+        )
       },
       { key: 'DISTRICT', label: '行政區' },
       { key: 'ADDRESS', label: '施工地址' },
@@ -115,7 +130,8 @@ export default function WorkOrderView() {
       {
         key: 'DUE_DATE',
         label: '限期',
-        render: (v, row) => (v ? <StatusChip label={v} color={row.OVERDUE ? 'var(--c-error)' : 'var(--c-neutral)'} /> : '—')
+        render: (v, row) =>
+          v ? <StatusChip label={v} color={row.OVERDUE ? 'var(--c-error)' : 'var(--c-neutral)'} /> : '—'
       },
       { key: 'WORK_END_DATE', label: '完工日' },
       { key: 'MATERIAL', label: '材料', render: (v) => MATERIAL_LABEL[v] ?? v ?? '—' },
@@ -140,7 +156,12 @@ export default function WorkOrderView() {
           共 {total || rows.length} 張派工單
         </Typography>
 
-        <Chip size="small" variant="outlined" color={connected ? 'success' : 'default'} label={connected ? '即時更新中' : '連線中…'} />
+        <Chip
+          size="small"
+          variant="outlined"
+          color={connected ? 'success' : 'default'}
+          label={connected ? '即時更新中' : '連線中…'}
+        />
 
         <ToggleButtonGroup size="small" exclusive value={mode} onChange={(_, v) => v && setMode(v)}>
           <ToggleButton value="board" aria-label="看板檢視">
@@ -170,7 +191,14 @@ export default function WorkOrderView() {
       {loading && <LinearProgress />}
 
       {mode === 'board' && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(220px, 1fr))' }, gap: 2, alignItems: 'start' }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(220px, 1fr))' },
+            gap: 2,
+            alignItems: 'start'
+          }}
+        >
           {COLUMNS.map((col) => (
             <Paper key={col.status} sx={{ p: 1.5, minHeight: 200 }}>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5, px: 0.5 }}>
@@ -203,14 +231,18 @@ export default function WorkOrderView() {
                       {w.THUMBNAILS?.length > 0 && <ImageCell images={w.THUMBNAILS} size={40} />}
 
                       <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography variant="caption" sx={{ fontFamily: '"JetBrains Mono", monospace', color: 'text.secondary' }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ fontFamily: '"JetBrains Mono", monospace', color: 'text.secondary' }}
+                        >
                           {w.CASE_NUM}
                         </Typography>
                         <Typography variant="body2" sx={{ mt: 0.3, fontWeight: 500 }} noWrap>
                           {w.ADDRESS ?? '未定位'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" component="div">
-                          {CasePresenter.workOrderTypeLabel(w.TYPE)} · {(w.WORKERS ?? []).map((x) => x.NAME).join('、') || '未指派'}
+                          {CasePresenter.workOrderTypeLabel(w.TYPE)} ·{' '}
+                          {(w.WORKERS ?? []).map((x) => x.NAME).join('、') || '未指派'}
                         </Typography>
                       </Box>
                     </Stack>
@@ -227,7 +259,13 @@ export default function WorkOrderView() {
                       )}
                       {/* 缺件標在卡片上：驗收前才發現缺照片，那張單要再跑一輪 */}
                       {w.MISSING_IMAGE_COUNT > 0 && (
-                        <Chip size="small" color="warning" variant="outlined" label={`缺 ${w.MISSING_IMAGE_COUNT} 照`} sx={{ height: 20, fontSize: 11 }} />
+                        <Chip
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          label={`缺 ${w.MISSING_IMAGE_COUNT} 照`}
+                          sx={{ height: 20, fontSize: 11 }}
+                        />
                       )}
                     </Stack>
                   </Box>

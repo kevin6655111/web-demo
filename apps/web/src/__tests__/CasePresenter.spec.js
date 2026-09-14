@@ -32,7 +32,9 @@ describe('CasePresenter', () => {
     it('狀態與類型翻成中文，欄位名也是', () => {
       expect(CasePresenter.changeText('status', { from: 0, to: 1 })).toBe('二篩狀態：未審 → 通過');
       expect(CasePresenter.changeText('needRepair', { from: 1, to: 2 })).toBe('案件狀態：觀察中 → 已派工');
-      expect(CasePresenter.changeText('crackType', { from: 'Cracking', to: 'Potholes' })).toBe('破壞類型：線狀裂縫 → 坑洞');
+      expect(CasePresenter.changeText('crackType', { from: 'Cracking', to: 'Potholes' })).toBe(
+        '破壞類型：線狀裂縫 → 坑洞'
+      );
     });
 
     it('空值顯示為「（空）」，讓「原本沒有」看得出來', () => {
@@ -47,7 +49,17 @@ describe('CasePresenter', () => {
   });
 
   it('每個歷程動作都有中文與顏色', () => {
-    for (const action of ['CREATED', 'UPDATED', 'GEOCODED', 'STATUS_CHANGED', 'DISPATCHED', 'ACCEPTED', 'RETURNED', 'IMAGE_UPLOADED', 'RESTORED']) {
+    for (const action of [
+      'CREATED',
+      'UPDATED',
+      'GEOCODED',
+      'STATUS_CHANGED',
+      'DISPATCHED',
+      'ACCEPTED',
+      'RETURNED',
+      'IMAGE_UPLOADED',
+      'RESTORED'
+    ]) {
       const meta = CasePresenter.actionMeta(action);
       expect(meta.label).toBeTruthy();
       // 顏色走 CSS 變數，值由 global.css 依 data-theme 決定 ——

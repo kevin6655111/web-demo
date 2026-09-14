@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { HttpResponse, type HttpResult } from '@/http/http-response';
 import { RedisService } from '@/redis/redis.service';
 import { Vehicle, type VehicleState, type VehicleType } from './entities/vehicle.entity';
@@ -42,6 +42,8 @@ export class FleetService {
     if (dto.PROJECT_ID) qb.andWhere('v.project_id = :projectId', { projectId: dto.PROJECT_ID });
     if (dto.ONLINE_ONLY) qb.andWhere("v.last_report_at > now() - interval '5 minutes'");
 
+    this.applyScopeFilter(qb, 'v', dto);
+
     const rows = await qb.getMany();
     const now = Date.now();
 
@@ -73,6 +75,67 @@ export class FleetService {
   }
 
   /** 新增或更新車輛 */
+  /**
+   * 標案／工務段／轄區的範圍條件。
+   *
+   * 車輛與軌跡的查詢面板都提供這一組條件，兩處各寫一份的話，
+   * 其中一邊改了關聯路徑另一邊不會跟著改。
+   *
+   * 關聯鏈是：車輛 → 標案（`project_vehicles`）→ 工務段（`project_sections`）
+   * → 轄區（`section_areas` → `areas`）。轄區掛在「標案-工務段」之下而非工務段本身，
+   * 因為同一個工務段在不同標案負責的行政區可以不同。
+   *
+   * 用 `EXISTS` 而非 `JOIN`：關聯是一對多，用 JOIN 會讓同一台車出現多列。
+   *
+   * @param alias 車輛在查詢中的別名
+   */
+  private applyScopeFilter(
+    qb: SelectQueryBuilder<ObjectLiteral>,
+    alias: string,
+    dto: { PRJ_ID?: string; SECTION_ID?: number; COUNTY?: string; DISTRICT?: string }
+  ): void {
+    if (dto.PRJ_ID) {
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM project_vehicles pv
+                   JOIN projects prj ON prj.id = pv.project_id
+                  WHERE pv.vehicle_id = ${alias}.id AND pv.is_active = true AND prj.prj_id = :scopePrjId)`,
+        { scopePrjId: dto.PRJ_ID }
+      );
+    }
+
+    if (dto.SECTION_ID) {
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM project_vehicles pv
+                   JOIN project_sections ps ON ps.project_id = pv.project_id AND ps.is_active = true
+                  WHERE pv.vehicle_id = ${alias}.id AND pv.is_active = true AND ps.section_id = :scopeSectionId)`,
+        { scopeSectionId: dto.SECTION_ID }
+      );
+    }
+
+    if (dto.COUNTY || dto.DISTRICT) {
+      const conditions: string[] = [];
+      const params: Record<string, unknown> = {};
+
+      if (dto.COUNTY) {
+        conditions.push('ar.county = :scopeCounty');
+        params.scopeCounty = dto.COUNTY;
+      }
+      if (dto.DISTRICT) {
+        conditions.push('ar.district = :scopeDistrict');
+        params.scopeDistrict = dto.DISTRICT;
+      }
+
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM project_vehicles pv
+                   JOIN project_sections ps ON ps.project_id = pv.project_id AND ps.is_active = true
+                   JOIN section_areas sa ON sa.project_section_id = ps.id AND sa.is_active = true
+                   JOIN areas ar ON ar.id = sa.area_id
+                  WHERE pv.vehicle_id = ${alias}.id AND pv.is_active = true AND ${conditions.join(' AND ')})`,
+        params
+      );
+    }
+  }
+
   public async upsertVehicle(dto: UpsertVehicleDto, companyId: number): Promise<HttpResult> {
     const duplicate = await this.vehicleRepo
       .createQueryBuilder('v')

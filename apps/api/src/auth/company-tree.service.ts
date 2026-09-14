@@ -234,7 +234,10 @@ export class CompanyTreeService {
     const target = await this.assertInSubtree(user.companyId, companyId);
 
     const [grants, grantable] = await Promise.all([
-      this.grantRepo.find({ where: { company: { id: target.id } }, relations: { grantedByCompany: true, grantedBy: true } }),
+      this.grantRepo.find({
+        where: { company: { id: target.id } },
+        relations: { grantedByCompany: true, grantedBy: true }
+      }),
       this.getGrantableActions(user.companyId)
     ]);
 
@@ -286,7 +289,10 @@ export class CompanyTreeService {
       for (const g of existing) {
         const shouldBeActive = next.has(g.actionKey);
         if (g.isActive !== shouldBeActive) {
-          await grantRepo.update({ id: g.id }, { isActive: shouldBeActive, grantedByCompany: { id: user.companyId }, grantedBy: { id: user.uid } });
+          await grantRepo.update(
+            { id: g.id },
+            { isActive: shouldBeActive, grantedByCompany: { id: user.companyId }, grantedBy: { id: user.uid } }
+          );
         }
       }
 

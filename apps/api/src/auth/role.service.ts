@@ -41,16 +41,25 @@ export class RoleService {
     const byRole = new Map(counts.map((c) => [Number(c.roleId), c.count]));
 
     return HttpResponse.successOrWarn({
-      data: roles.map((r) => ({ ID: r.id, KEY: r.key, NAME: r.name, ACTIONS: r.actions, USER_COUNT: byRole.get(r.id) ?? 0 }))
+      data: roles.map((r) => ({
+        ID: r.id,
+        KEY: r.key,
+        NAME: r.name,
+        ACTIONS: r.actions,
+        USER_COUNT: byRole.get(r.id) ?? 0
+      }))
     });
   }
 
   /** 新增角色 */
   public async create(dto: CreateRoleDto): Promise<HttpResult> {
-    if (await this.roleRepo.exists({ where: { key: dto.KEY } })) throw new ConflictException(`角色代號已存在：${dto.KEY}`);
+    if (await this.roleRepo.exists({ where: { key: dto.KEY } }))
+      throw new ConflictException(`角色代號已存在：${dto.KEY}`);
     this.assertValidActions(dto.ACTIONS);
 
-    const saved = await this.roleRepo.save(this.roleRepo.create({ key: dto.KEY, name: dto.NAME, actions: dto.ACTIONS }));
+    const saved = await this.roleRepo.save(
+      this.roleRepo.create({ key: dto.KEY, name: dto.NAME, actions: dto.ACTIONS })
+    );
     return HttpResponse.success({ message: '角色已建立', data: { ID: saved.id } });
   }
 

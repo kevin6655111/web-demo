@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { LocationService } from '@/location/location.service';
+import { RedisService } from '@/redis/redis.service';
 import { Repository } from 'typeorm';
 import { PatrolCase } from '@entities/patrol-case.entity';
 
@@ -17,9 +19,16 @@ export type NearbyCase = {
  * 空間查詢：全部走 PostGIS，不在 Node 端算距離。
  * geography 型別的距離單位就是公尺，不必自己換算投影。
  */
+/** 行政區界線的快取存活時間；界線是粗略近似值，十分鐘的落差不影響用途 */
+const BOUNDS_CACHE_TTL_MS = 10 * 60_000;
+
 @Injectable()
 export class GeoService {
-  constructor(@InjectRepository(PatrolCase) private readonly caseRepo: Repository<PatrolCase>) {}
+  constructor(
+    @InjectRepository(PatrolCase) private readonly caseRepo: Repository<PatrolCase>,
+    private readonly locationService: LocationService,
+    private readonly redisService: RedisService
+  ) {}
 
   /**
    * 查詢指定座標半徑內的案件。
@@ -52,15 +61,32 @@ export class GeoService {
    * 放進示範專案不合理 —— 而這個近似值足以示範「界線圖層」這件事。
    */
   public async getDistrictBounds(companyId: number): Promise<unknown> {
+    // 凸包聚合的成本隨案件數線性成長：1,800 筆時 15 ms，9 萬筆時 110 ms，
+    // 而這是圖台每次開啟都會呼叫的端點。
+    //
+    // 用 TTL 而非事件失效：界線由案件位置推導，案件持續新增，
+    // 事件失效會讓快取幾乎不生效。而界線本身是粗略近似值 ——
+    // 晚十分鐘反映新案件不影響它的用途。
+    const { value } = await this.redisService.remember(`geo:bounds:${companyId}`, BOUNDS_CACHE_TTL_MS, () =>
+      this.computeDistrictBounds(companyId)
+    );
+
+    return value;
+  }
+
+  private async computeDistrictBounds(companyId: number): Promise<unknown> {
     const rows = await this.caseRepo.query(
       `
-      SELECT district,
+      SELECT ad.district,
              COUNT(*)::int AS case_count,
-             ST_AsGeoJSON(ST_ConvexHull(ST_Collect(geom::geometry)))::json AS geometry
-        FROM patrol_cases
-       WHERE company_id = $1
-         AND district IS NOT NULL
-       GROUP BY district
+             ST_AsGeoJSON(ST_ConvexHull(ST_Collect(c.geom::geometry)))::json AS geometry
+        FROM patrol_cases c
+        -- 行政區在地址表而非主表：主表只放車機寫進來的內容，
+        -- 地址是逆地理編碼之後才補上的
+        JOIN patrol_case_addresses ad ON ad.case_id = c.id
+       WHERE c.company_id = $1
+         AND ad.district IS NOT NULL
+       GROUP BY ad.district
         -- 少於三點的凸包會退化成線或點，畫不出面
       HAVING COUNT(*) >= 3
       `,
@@ -108,11 +134,26 @@ export class GeoService {
   /**
    * 逆地理編碼(取得路名)。
    *
-   * 正式系統接的是自架的 Nominatim；Demo 不依賴外部服務，
-   * 改用固定網格產生穩定的假路名 —— 同一座標永遠得到同一個結果，
-   * 佇列重試才不會每次寫進不同的值。
+   * 優先查詢 `location` 模組的門牌圖資；查無門牌時退回決定性的假路名。
+   *
+   * 保留退路的原因：門牌圖資的涵蓋範圍不會等於案件的分布範圍，
+   * 山區與新闢道路查不到門牌是常態。此時仍需給案件一個穩定的路名，
+   * 否則同一筆案件在佇列重試時會寫進不同的值。
    */
   public async reverseGeocode(lng: number, lat: number): Promise<string> {
+    const resolved = await this.locationService.reverse(lng, lat);
+    if (resolved.road) return resolved.road;
+
+    return this.syntheticRoad(lng, lat);
+  }
+
+  /**
+   * 查無門牌時的替代路名。
+   *
+   * 由座標網格推導，因此同一座標永遠得到同一個結果 ——
+   * 佇列重試不會每次寫進不同的值。
+   */
+  private syntheticRoad(lng: number, lat: number): string {
     const grid = `${Math.floor(lng * 200)}:${Math.floor(lat * 200)}`;
     const roads = ['中山路', '民生路', '建國路', '文心路', '中港路', '成功路', '和平路', '光復路'];
     const sections = ['一段', '二段', '三段', '四段'];

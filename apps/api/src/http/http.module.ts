@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuthModule } from '@/auth/auth.module';
 import { HttpController } from './http.controller';
 import { AuthGuard } from './guards/auth.guard';
 import { PermissionGuard } from './guards/permission.guard';
@@ -12,6 +13,8 @@ import { HttpExceptionFilter } from './guards/http-exception.filter';
  * 守衛順序是 AuthGuard → PermissionGuard(先確認是誰，才問能不能做)。
  */
 @Module({
+  // AuthGuard 要驗 API Key，金鑰的查詢與快取在 AuthModule
+  imports: [AuthModule],
   controllers: [HttpController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

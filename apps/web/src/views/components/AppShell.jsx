@@ -108,8 +108,13 @@ export default function AppShell({ children }) {
                   }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 30, color: active ? 'primary.main' : 'text.secondary', fontSize: 17 }}>{mod.icon}</ListItemIcon>
-                <ListItemText primaryTypographyProps={{ fontSize: 14, fontWeight: active ? 600 : 400 }} primary={mod.title} />
+                <ListItemIcon sx={{ minWidth: 30, color: active ? 'primary.main' : 'text.secondary', fontSize: 17 }}>
+                  {mod.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primaryTypographyProps={{ fontSize: 14, fontWeight: active ? 600 : 400 }}
+                  primary={mod.title}
+                />
               </ListItemButton>
 
               {/* 展開中的模組列出子功能：讓使用者知道點進去有什麼，而不是點了才發現 */}
@@ -145,7 +150,8 @@ export default function AppShell({ children }) {
             borderRight: (t) => `1px solid ${t.palette.divider}`,
             // 側邊欄自成一層：夜間靠半透明的深色，日間靠一道由白到淡灰藍的漸層。
             // 兩邊都與內容區分得開，但都不是「另一塊純白」
-            bgcolor: (t) => (t.palette.mode === 'dark' ? alpha(t.palette.background.paper, 0.6) : t.palette.background.paper),
+            bgcolor: (t) =>
+              t.palette.mode === 'dark' ? alpha(t.palette.background.paper, 0.6) : t.palette.background.paper,
             backgroundImage: 'var(--sidebar-bg)',
             backdropFilter: 'blur(12px)'
           }
@@ -181,7 +187,16 @@ export default function AppShell({ children }) {
             <Typography sx={{ fontWeight: 600, flex: 1 }}>{currentTitle}</Typography>
 
             <Chip size="small" label={user.roleName} variant="outlined" />
-            <Avatar sx={{ width: 30, height: 30, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: 13, fontWeight: 700 }}>
+            <Avatar
+              sx={{
+                width: 30,
+                height: 30,
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                fontSize: 13,
+                fontWeight: 700
+              }}
+            >
               {user.name?.[0] ?? '?'}
             </Avatar>
             <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>

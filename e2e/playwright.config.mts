@@ -17,7 +17,9 @@ export default defineConfig({
   // 本機平行跑會讓即時推播的測試互相干擾(同一個帳號的 WebSocket 連線)
   workers: process.env.CI ? 2 : 1,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'results/junit.xml' }]] : [['list']],
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: 'results/junit.xml' }]]
+    : [['list']],
 
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3005',

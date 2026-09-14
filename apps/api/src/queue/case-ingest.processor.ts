@@ -47,7 +47,10 @@ export class CaseIngestProcessor extends WorkerHost {
 
     // 地址在獨立的表：案件建立當下沒有地址是正常狀態，不是資料不完整
     if (current.address) {
-      await this.addressRepo.update({ id: current.address.id }, { road: roadName, address: roadName, oAddress: roadName });
+      await this.addressRepo.update(
+        { id: current.address.id },
+        { road: roadName, address: roadName, oAddress: roadName }
+      );
     } else {
       await this.addressRepo.save(
         this.addressRepo.create({ patrolCase: { id: caseId }, road: roadName, address: roadName, oAddress: roadName })

@@ -15,6 +15,8 @@ export type HttpResult<T = any> = {
   message?: string;
   data?: T;
   errors?: unknown;
+  /** 這次回應是否取自快取；只加在信封層，不動 data 的形狀 */
+  cached?: boolean;
 };
 
 export type SuccessArgs<T = any> = { data?: T; message?: string; code?: number; errors?: unknown };

@@ -39,7 +39,11 @@ describe('日夜佈景', () => {
   });
 
   it('沒選過時跟著系統偏好走', () => {
-    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    vi.spyOn(window, 'matchMedia').mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    });
 
     render(
       <AppThemeProvider>

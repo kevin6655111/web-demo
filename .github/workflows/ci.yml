@@ -28,6 +28,9 @@ jobs:
       - name: 安裝依賴
         run: yarn install --frozen-lockfile
 
+      - name: 程式碼格式
+        run: yarn format:check
+
       - name: 後端型別檢查
         run: yarn typecheck
 
@@ -126,7 +129,7 @@ jobs:
           # 背景啟動；只有 api 跑 migration，其餘行程要關掉避免搶著改 schema
           nohup yarn api > /tmp/api.log 2>&1 &
           RUN_MIGRATIONS=false nohup yarn tiles > /tmp/tiles.log 2>&1 &
-          RUN_MIGRATIONS=false nohup yarn worker > /tmp/worker.log 2>&1 &
+          RUN_MIGRATIONS=false nohup yarn case-worker > /tmp/worker.log 2>&1 &
           RUN_MIGRATIONS=false nohup yarn report-worker > /tmp/report.log 2>&1 &
           nohup yarn web > /tmp/web.log 2>&1 &
 

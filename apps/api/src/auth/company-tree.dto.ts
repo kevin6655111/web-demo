@@ -1,6 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  MaxLength,
+  Min
+} from 'class-validator';
 import { COMPANY_TIER } from './entities/company.entity';
 import { ACTION_KEYS } from './constants/module.const';
 
@@ -37,7 +49,12 @@ export class CreateCompanyDto {
   @MaxLength(50)
   NAME!: string;
 
-  @ApiPropertyOptional({ example: 10, minimum: 1, maximum: 500, description: '人員額度；開通模組卻不限人數等於沒有限制' })
+  @ApiPropertyOptional({
+    example: 10,
+    minimum: 1,
+    maximum: 500,
+    description: '人員額度；開通模組卻不限人數等於沒有限制'
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -1,7 +1,8 @@
 /** 佇列名稱 */
 export const QUEUE = {
   CASE_INGEST: 'case-ingest',
-  REPORT: 'report'
+  REPORT: 'report',
+  MAIL: 'mail'
 } as const;
 
 /** 微服務事件名稱(Redis transport 的 pattern) */
@@ -27,13 +28,24 @@ export type CaseIngestJob = {
 export type ReportJobPayload = {
   reportId: number;
   companyId: number;
+  /** 報表種類；決定資料來源與版面(見 REPORT_KIND_DEF) */
+  kind: string;
   format: 'XLSX' | 'DOCX';
   params: Record<string, unknown>;
 };
 
+/** mail 佇列的工作內容：只帶 id，內容以資料庫為準 */
+export type MailJobPayload = { mailJobId: number };
+
 export type CaseCreatedEvent = CaseIngestJob & { crackType: string; detectedAt: string };
 export type CaseEnrichedEvent = { caseId: number; companyId: number; roadName: string };
-export type WorkOrderChangedEvent = { companyId: number; workOrderId: number; orderNo: string; state: string; caseId: number };
+export type WorkOrderChangedEvent = {
+  companyId: number;
+  workOrderId: number;
+  orderNo: string;
+  state: string;
+  caseId: number;
+};
 
 /**
  * 巡查單狀態變動。
@@ -42,6 +54,13 @@ export type WorkOrderChangedEvent = { companyId: number; workOrderId: number; or
  * 逐筆發事件的話，前端會為了同一次操作重整十幾遍列表。
  */
 export type MaintenanceChangedEvent = { companyId: number; ids: number[]; caseNums: string[]; state: string };
-export type ReportDoneEvent = { companyId: number; reportId: number; format: string; state: string; rowCount: number };
+export type ReportDoneEvent = {
+  companyId: number;
+  reportId: number;
+  kind: string;
+  format: string;
+  state: string;
+  rowCount: number;
+};
 
 export const CLIENT_EVENT_BUS = Symbol('CLIENT_EVENT_BUS');

@@ -30,7 +30,11 @@ const NEED_REPAIR_VALUES = NEED_REPAIR_DEF.map((s) => s.value);
 export const ToArray = () =>
   Transform(({ value }) => {
     if (value === undefined || value === null || value === '') return undefined;
-    return Array.isArray(value) ? value : String(value).split(',').filter((v) => v !== '');
+    return Array.isArray(value)
+      ? value
+      : String(value)
+          .split(',')
+          .filter((v) => v !== '');
   });
 
 /** 數字陣列：狀態是 int，逗號字串要轉成數字才比對得到 */
@@ -77,6 +81,17 @@ class BaseReceiveDto {
   @Type(() => Number)
   @IsNumber()
   ALTITUDE?: number;
+
+  @ApiPropertyOptional({
+    example: 135,
+    description: '車輛方位角 0–359；有帶就會把座標往行進方向校正 5 公尺(天線在車頂，破壞在鏡頭前方)'
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(360)
+  HEADING?: number;
 }
 
 export class AddCaseDto extends BaseReceiveDto {
@@ -136,7 +151,11 @@ export class AddCaseDto extends BaseReceiveDto {
   @MaxLength(255)
   IMG?: string;
 
-  @ApiPropertyOptional({ example: 'cases/TXG-20260829-000123_detect.jpg', maxLength: 255, description: 'AI 標註後的影像 key' })
+  @ApiPropertyOptional({
+    example: 'cases/TXG-20260829-000123_detect.jpg',
+    maxLength: 255,
+    description: 'AI 標註後的影像 key'
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -154,7 +173,11 @@ export class AddCaseDto extends BaseReceiveDto {
   @IsInt()
   SERIAL_NO?: number;
 
-  @ApiPropertyOptional({ example: '/sdcard/patrol/20260829/0128.jpg', maxLength: 255, description: '影像在車機上的原始路徑' })
+  @ApiPropertyOptional({
+    example: '/sdcard/patrol/20260829/0128.jpg',
+    maxLength: 255,
+    description: '影像在車機上的原始路徑'
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -241,7 +264,11 @@ class AddressQueryDto {
   @MaxLength(10)
   COUNTY?: string;
 
-  @ApiPropertyOptional({ example: [1], isArray: true, description: '工務段；轄區由「標案-工務段」的行政區推得，不是案件上的欄位' })
+  @ApiPropertyOptional({
+    example: [1],
+    isArray: true,
+    description: '工務段；轄區由「標案-工務段」的行政區推得，不是案件上的欄位'
+  })
   @IsOptional()
   @ToNumberArray()
   @IsInt({ each: true })
@@ -274,7 +301,11 @@ class AddressQueryDto {
 
 /** 狀態條件：三組狀態各自獨立 */
 class StatusQueryDto {
-  @ApiPropertyOptional({ enum: STATUS_VALUES, isArray: true, description: '二篩狀態：0 未篩 / 1 通過 / 2 待審 / 3 刪除 / 4 誤判' })
+  @ApiPropertyOptional({
+    enum: STATUS_VALUES,
+    isArray: true,
+    description: '二篩狀態：0 未篩 / 1 通過 / 2 待審 / 3 刪除 / 4 誤判'
+  })
   @IsOptional()
   @ToNumberArray()
   @IsIn(STATUS_VALUES, { each: true })
@@ -286,7 +317,11 @@ class StatusQueryDto {
   @IsIn(EDITED_VALUES, { each: true })
   EDITED?: number[];
 
-  @ApiPropertyOptional({ enum: NEED_REPAIR_VALUES, isArray: true, description: '需修復狀態：-1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工' })
+  @ApiPropertyOptional({
+    enum: NEED_REPAIR_VALUES,
+    isArray: true,
+    description: '需修復狀態：-1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工'
+  })
   @IsOptional()
   @ToNumberArray()
   @IsIn(NEED_REPAIR_VALUES, { each: true })
@@ -334,7 +369,11 @@ class OtherQueryDto {
 
 /** 分頁與排序 */
 class PageDto {
-  @ApiPropertyOptional({ example: 'DT_RECORD', enum: ['DT_RECORD', 'AREA', 'DEGREE', 'STATUS', 'CASE_NUM'], default: 'DT_RECORD' })
+  @ApiPropertyOptional({
+    example: 'DT_RECORD',
+    enum: ['DT_RECORD', 'AREA', 'DEGREE', 'STATUS', 'CASE_NUM'],
+    default: 'DT_RECORD'
+  })
   @IsOptional()
   @IsIn(['DT_RECORD', 'AREA', 'DEGREE', 'STATUS', 'CASE_NUM'])
   SORT_BY?: string = 'DT_RECORD';
@@ -377,7 +416,13 @@ export class CaseQueryDto extends IntersectionType(
 ) {}
 
 /** 統計查詢：不需要分頁，但多一個分組維度 */
-export class CaseStatsQueryDto extends IntersectionType(DateRangeDto, CrackQueryDto, AddressQueryDto, StatusQueryDto, OtherQueryDto) {
+export class CaseStatsQueryDto extends IntersectionType(
+  DateRangeDto,
+  CrackQueryDto,
+  AddressQueryDto,
+  StatusQueryDto,
+  OtherQueryDto
+) {
   @ApiPropertyOptional({
     example: 'DAY',
     enum: ['DAY', 'WEEK', 'MONTH', 'DISTRICT', 'CAVLGE', 'ROAD', 'CRACK_TYPE', 'DEGREE', 'CAR', 'PRJ_ID'],
@@ -569,4 +614,22 @@ export class NearbyQueryDto {
   @Min(1)
   @Max(20000)
   RADIUS_M?: number = 500;
+}
+
+
+/** 里程統計：請款是按行政區結算的，所以維度是「日期 × 車輛 × 行政區」 */
+export class MileageQueryDto {
+  @ApiProperty({ example: '2026-09-01' })
+  @IsDateString()
+  DATE_START!: string;
+
+  @ApiProperty({ example: '2026-09-14' })
+  @IsDateString()
+  DATE_END!: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  VEHICLE_ID?: number;
 }

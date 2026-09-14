@@ -76,10 +76,12 @@ import { API_AUTH, API_AUTH_SCHEME, API_DESCRIPTION, keepDocumented } from '@/ut
     .addTag('Project', '標案')
     .addTag('Case-Patrol', '巡查案件：新增、查詢、統計')
     .addTag('Case-History', '案件版本歷程：快照、比較、還原')
+    .addTag('Sift', '二篩：判定、覆核、統計、薪資')
     .addTag('Work-Order', '派工、施工回報、驗收')
     .addTag('Fleet', '車隊與軌跡')
     .addTag('Road-Eval', '路段評估')
     .addTag('Patrol-Setting', '巡查計畫與覆蓋率')
+    .addTag('Road-Setting', '道路線段、區塊、巡查點與點位覆蓋率')
     .addTag('Survey', '鋪面調查')
     .addTag('Report', '報表產製')
     .addTag('Dashboard', '儀表板')
@@ -95,7 +97,10 @@ import { API_AUTH, API_AUTH_SCHEME, API_DESCRIPTION, keepDocumented } from '@/ut
   // ───── 微服務：訂閱事件，讓 WebSocket 收得到 ──────────────────────
 
   const redis = envService.getRedisConfig();
-  app.connectMicroservice({ transport: Transport.REDIS, options: { host: redis.host, port: redis.port } }, { inheritAppConfig: true });
+  app.connectMicroservice(
+    { transport: Transport.REDIS, options: { host: redis.host, port: redis.port } },
+    { inheritAppConfig: true }
+  );
   await app.startAllMicroservices();
 
   // ───── WebSocket ─────────────────────────────────────────────────

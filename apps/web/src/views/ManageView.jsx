@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Chip, IconButton, LinearProgress, Paper, Stack, Tab, Tabs, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  LinearProgress,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
+  Typography
+} from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -11,13 +23,25 @@ import RoleDialog from './components/dialog/RoleDialog';
 import VehicleDialog from './components/dialog/VehicleDialog';
 import PlanDialog from './components/dialog/PlanDialog';
 import AnnouncementDialog from './components/dialog/AnnouncementDialog';
-import { SurveyOrderDialog } from './components/dialog/SurveyDialog';
 import ConfirmDialog from './components/dialog/ConfirmDialog';
 import DataTable, { ProgressBar, StatusChip } from './components/query/DataTable';
 import QueryForm from './components/query/QueryForm';
-import { authApi, companyApi, coreApi, fleetApi, patrolPlanApi, projectApi, surveyApi, taskApi } from '../models/api/patrolApi';
+import {
+  authApi,
+  companyApi,
+  coreApi,
+  fleetApi,
+  patrolPlanApi,
+  projectApi,
+  taskApi
+} from '../models/api/patrolApi';
 import { CasePresenter } from '../presenters/CasePresenter';
-import { PROJECT_STATE_LABEL, SURVEY_ORDER_STATE_LABEL, VEHICLE_STATE_COLOR, VEHICLE_STATE_LABEL, VEHICLE_TYPE_LABEL } from '../config/vocabulary';
+import {
+  PROJECT_STATE_LABEL,
+  VEHICLE_STATE_COLOR,
+  VEHICLE_STATE_LABEL,
+  VEHICLE_TYPE_LABEL
+} from '../config/vocabulary';
 import { useUser } from '../context/UserContext';
 
 const FREQ_LABEL = { DAILY: '每日', WEEKLY: '每週', BIWEEKLY: '雙週', MONTHLY: '每月' };
@@ -46,14 +70,24 @@ export default function ManageView() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [projects, roles, users, vehicles, plans, coverage, surveys, tasks, announcements, subCompanies, grantable] = await Promise.all([
+      const [
+        projects,
+        roles,
+        users,
+        vehicles,
+        plans,
+        coverage,
+        tasks,
+        announcements,
+        subCompanies,
+        grantable
+      ] = await Promise.all([
         projectApi.list().catch(() => ({ data: [] })),
         authApi.roles().catch(() => ({ data: [] })),
         authApi.orgUsers().catch(() => ({ data: [] })),
         fleetApi.vehicles({}).catch(() => ({ data: [] })),
         patrolPlanApi.list({}).catch(() => ({ data: [] })),
         patrolPlanApi.coverage(coverageRange).catch(() => ({ data: { PLANS: [] } })),
-        surveyApi.orders({}).catch(() => ({ data: [] })),
         can('TASK.READ') ? taskApi.status() : Promise.resolve({ data: [] }),
         coreApi.announcements().catch(() => ({ data: [] })),
         can('ACCOUNT.READ') ? companyApi.list().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
@@ -67,7 +101,6 @@ export default function ManageView() {
         vehicles: vehicles.data ?? [],
         plans: plans.data ?? [],
         coverage: coverage.data ?? { PLANS: [] },
-        surveys: surveys.data ?? [],
         tasks: tasks.data ?? [],
         announcements: announcements.data ?? [],
         subCompanies: subCompanies.data ?? [],
@@ -104,7 +137,16 @@ export default function ManageView() {
           { key: 'PRJ_NO', label: '標案編號', mono: true },
           { key: 'PRJ_NAME', label: '名稱', wrap: true },
           { key: 'PROPRIETOR', label: '業主' },
-          { key: 'STATE', label: '狀態', render: (v) => <StatusChip label={PROJECT_STATE_LABEL[v] ?? v} color={v === 'ACTIVE' ? 'var(--c-success)' : 'var(--c-neutral)'} /> },
+          {
+            key: 'STATE',
+            label: '狀態',
+            render: (v) => (
+              <StatusChip
+                label={PROJECT_STATE_LABEL[v] ?? v}
+                color={v === 'ACTIVE' ? 'var(--c-success)' : 'var(--c-neutral)'}
+              />
+            )
+          },
           { key: 'START_DATE', label: '起' },
           { key: 'END_DATE', label: '迄' },
           { key: 'ROAD_KM', label: '里程 km', type: 'number', digits: 1 },
@@ -131,7 +173,11 @@ export default function ManageView() {
             )
           },
           { key: 'GRANT_COUNT', label: '已開通', type: 'number', digits: 0 },
-          { key: 'IS_ACTIVE', label: '狀態', render: (v) => <StatusChip label={v ? '啟用' : '停用'} color={v ? 'var(--c-success)' : 'var(--c-error)'} /> },
+          {
+            key: 'IS_ACTIVE',
+            label: '狀態',
+            render: (v) => <StatusChip label={v ? '啟用' : '停用'} color={v ? 'var(--c-success)' : 'var(--c-error)'} />
+          },
           { key: 'DESCRIPTION', label: '說明', wrap: true }
         ],
         rows: data.subCompanies ?? [],
@@ -145,7 +191,11 @@ export default function ManageView() {
           { key: 'ACCOUNT', label: '帳號', mono: true },
           { key: 'USER_NAME', label: '姓名' },
           { key: 'ROLE', label: '角色' },
-          { key: 'ACTIVE', label: '狀態', render: (v) => <StatusChip label={v ? '啟用' : '停用'} color={v ? 'var(--c-success)' : 'var(--c-error)'} /> },
+          {
+            key: 'ACTIVE',
+            label: '狀態',
+            render: (v) => <StatusChip label={v ? '啟用' : '停用'} color={v ? 'var(--c-success)' : 'var(--c-error)'} />
+          },
           { key: 'LAST_LOGIN_AT', label: '最後登入', render: (v) => (v ? CasePresenter.time(v) : '—') }
         ],
         rows: data.users ?? []
@@ -164,7 +214,12 @@ export default function ManageView() {
             render: (v) => (
               <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap>
                 {v.slice(0, 8).map((a) => (
-                  <Chip key={a} size="small" label={a} sx={{ height: 19, fontSize: 10, fontFamily: '"JetBrains Mono", monospace' }} />
+                  <Chip
+                    key={a}
+                    size="small"
+                    label={a}
+                    sx={{ height: 19, fontSize: 10, fontFamily: '"JetBrains Mono", monospace' }}
+                  />
                 ))}
                 {v.length > 8 && <Chip size="small" label={`+${v.length - 8}`} sx={{ height: 19, fontSize: 10 }} />}
               </Stack>
@@ -180,7 +235,11 @@ export default function ManageView() {
           { key: 'PLATE_NO', label: '車牌', mono: true },
           { key: 'NAME', label: '名稱' },
           { key: 'VEHICLE_TYPE', label: '用途', render: (v) => VEHICLE_TYPE_LABEL[v] ?? v },
-          { key: 'STATE', label: '狀態', render: (v) => <StatusChip label={VEHICLE_STATE_LABEL[v] ?? v} color={VEHICLE_STATE_COLOR[v]} /> },
+          {
+            key: 'STATE',
+            label: '狀態',
+            render: (v) => <StatusChip label={VEHICLE_STATE_LABEL[v] ?? v} color={VEHICLE_STATE_COLOR[v]} />
+          },
           { key: 'DEVICE_ID', label: '車機', mono: true },
           { key: 'DRIVER', label: '駕駛' },
           { key: 'TODAY_KM', label: '今日 km', type: 'number', digits: 1 },
@@ -198,7 +257,13 @@ export default function ManageView() {
           { key: 'VEHICLE', label: '指派車輛', mono: true },
           { key: 'ROUTE_KM', label: '路線 km', type: 'number', digits: 2 },
           { key: 'BUFFER_M', label: '緩衝 m', type: 'number', digits: 0 },
-          { key: 'ACTIVE', label: '啟用', render: (v) => <StatusChip label={v ? '啟用' : '停用'} color={v ? 'var(--c-success)' : 'var(--c-neutral)'} /> }
+          {
+            key: 'ACTIVE',
+            label: '啟用',
+            render: (v) => (
+              <StatusChip label={v ? '啟用' : '停用'} color={v ? 'var(--c-success)' : 'var(--c-neutral)'} />
+            )
+          }
         ],
         rows: data.plans ?? []
       },
@@ -210,7 +275,12 @@ export default function ManageView() {
           {
             key: 'LEVEL',
             label: '層級',
-            render: (v) => <StatusChip label={{ INFO: '一般', WARNING: '注意', CRITICAL: '重要' }[v] ?? v} color={{ INFO: 'var(--c-info)', WARNING: 'var(--c-warning)', CRITICAL: 'var(--c-error)' }[v]} />
+            render: (v) => (
+              <StatusChip
+                label={{ INFO: '一般', WARNING: '注意', CRITICAL: '重要' }[v] ?? v}
+                color={{ INFO: 'var(--c-info)', WARNING: 'var(--c-warning)', CRITICAL: 'var(--c-error)' }[v]}
+              />
+            )
           },
           { key: 'PINNED', label: '置頂', render: (v) => (v ? '是' : '—') },
           { key: 'START_AT', label: '開始', render: (v) => CasePresenter.time(v) },
@@ -245,20 +315,6 @@ export default function ManageView() {
         ],
         rows: data.announcements ?? []
       },
-      survey: {
-        label: '鋪面調查',
-        canAdd: can('SURVEY.UPDATE'),
-        columns: [
-          { key: 'ORDER_NO', label: '委託單號', mono: true },
-          { key: 'TITLE', label: '標題', wrap: true },
-          { key: 'STATE', label: '狀態', render: (v) => <StatusChip label={SURVEY_ORDER_STATE_LABEL[v] ?? v} color={v === 'CLOSED' ? 'var(--c-success)' : 'var(--c-info)'} /> },
-          { key: 'REQUESTER', label: '委託單位' },
-          { key: 'SURVEYOR', label: '調查人員' },
-          { key: 'DUE_DATE', label: '期限' },
-          { key: 'PROGRESS', label: '進度', align: 'right', render: (v, row) => <ProgressBar value={v} color="#38bdf8" /> }
-        ],
-        rows: data.surveys ?? []
-      }
     }),
     [data, can, load]
   );
@@ -317,7 +373,12 @@ export default function ManageView() {
             {
               key: 'ENABLED',
               label: '狀態',
-              render: (v, row) => <StatusChip label={row.RUNNING ? '執行中' : v ? '啟用' : '停用'} color={row.RUNNING ? 'var(--c-info)' : v ? 'var(--c-success)' : 'var(--c-neutral)'} />
+              render: (v, row) => (
+                <StatusChip
+                  label={row.RUNNING ? '執行中' : v ? '啟用' : '停用'}
+                  color={row.RUNNING ? 'var(--c-info)' : v ? 'var(--c-success)' : 'var(--c-neutral)'}
+                />
+              )
             },
             { key: 'LAST_RUN', label: '上次完成', render: (v) => (v ? CasePresenter.time(v) : '—') },
             {
@@ -325,7 +386,12 @@ export default function ManageView() {
               label: '手動觸發',
               align: 'right',
               render: (v, row) => (
-                <Button size="small" startIcon={<PlayArrowIcon />} disabled={!can('TASK.RUN') || row.RUNNING} onClick={() => trigger(v)}>
+                <Button
+                  size="small"
+                  startIcon={<PlayArrowIcon />}
+                  disabled={!can('TASK.RUN') || row.RUNNING}
+                  onClick={() => trigger(v)}
+                >
                   執行
                 </Button>
               )
@@ -397,16 +463,6 @@ export default function ManageView() {
         }}
       />
 
-      <SurveyOrderDialog
-        open={dialog.kind === 'survey'}
-        row={dialog.row}
-        onClose={() => setDialog({ kind: null, row: null })}
-        onSaved={() => {
-          setDialog({ kind: null, row: null });
-          load();
-        }}
-      />
-
       <AnnouncementDialog
         open={dialog.kind === 'announcement'}
         row={dialog.row}
@@ -455,7 +511,13 @@ export default function ManageView() {
                 <Typography variant="caption" color="text.secondary">
                   未達 80%
                 </Typography>
-                <Typography variant="h5" sx={{ fontFamily: '"JetBrains Mono", monospace', color: data.coverage?.UNDER_TARGET ? 'error.main' : 'inherit' }}>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    color: data.coverage?.UNDER_TARGET ? 'error.main' : 'inherit'
+                  }}
+                >
                   {data.coverage?.UNDER_TARGET ?? 0} 條
                 </Typography>
               </Box>
@@ -474,7 +536,12 @@ export default function ManageView() {
                 key: 'COVERAGE',
                 label: '覆蓋率',
                 align: 'right',
-                render: (v) => <ProgressBar value={v} color={v >= 80 ? 'var(--c-success)' : v >= 50 ? 'var(--c-warning)' : 'var(--c-error)'} />
+                render: (v) => (
+                  <ProgressBar
+                    value={v}
+                    color={v >= 80 ? 'var(--c-success)' : v >= 50 ? 'var(--c-warning)' : 'var(--c-error)'}
+                  />
+                )
               }
             ]}
             rows={data.coverage?.PLANS ?? []}

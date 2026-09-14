@@ -32,8 +32,14 @@ export class SupportController {
   @ApiBody({
     type: OpenThreadDto,
     examples: {
-      device: { summary: '車機問題', value: { SUBJECT: '車機無法上傳案件', CATEGORY: 'DEVICE', BODY: 'DEMO-001 今天早上開始一直顯示上傳失敗' } },
-      account: { summary: '帳號問題', value: { SUBJECT: '同事帳號被鎖定', CATEGORY: 'ACCOUNT', BODY: '林師傅連續輸錯密碼被鎖，能否解鎖' } }
+      device: {
+        summary: '車機問題',
+        value: { SUBJECT: '車機無法上傳案件', CATEGORY: 'DEVICE', BODY: 'DEMO-001 今天早上開始一直顯示上傳失敗' }
+      },
+      account: {
+        summary: '帳號問題',
+        value: { SUBJECT: '同事帳號被鎖定', CATEGORY: 'ACCOUNT', BODY: '林師傅連續輸錯密碼被鎖，能否解鎖' }
+      }
     }
   })
   @ApiResponse({ status: 201, description: '已建立或接續既有對話' })
@@ -45,7 +51,10 @@ export class SupportController {
 
   /** 我的對話 */
   @Get('support/thread/mine')
-  @ApiOperation({ summary: '我的客服對話', description: ['依時間新到舊回傳自己開過的對話與未讀數。', '', '所有登入者可用。'].join('\n') })
+  @ApiOperation({
+    summary: '我的客服對話',
+    description: ['依時間新到舊回傳自己開過的對話與未讀數。', '', '所有登入者可用。'].join('\n')
+  })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors()
   async handleMyThreads(@User() user: AuthUser): Promise<HttpResult> {
@@ -56,7 +65,11 @@ export class SupportController {
   @Get('support/thread')
   @ApiOperation({
     summary: '客服對話清單',
-    description: ['**未指派的排最前面** —— 那些是還沒有人接的，也是最可能被漏掉的。', '', '所需權限：`SUPPORT.AGENT`'].join('\n')
+    description: [
+      '**未指派的排最前面** —— 那些是還沒有人接的，也是最可能被漏掉的。',
+      '',
+      '所需權限：`SUPPORT.AGENT`'
+    ].join('\n')
   })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors()
@@ -69,7 +82,11 @@ export class SupportController {
   @Get('support/thread/:ID/message')
   @ApiOperation({
     summary: '讀取對話訊息',
-    description: ['讀取後會清掉自己這一側的未讀數 —— 使用者與客服的未讀是分開算的。', '', '發問者本人或客服可讀。'].join('\n')
+    description: [
+      '讀取後會清掉自己這一側的未讀數 —— 使用者與客服的未讀是分開算的。',
+      '',
+      '發問者本人或客服可讀。'
+    ].join('\n')
   })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors({ notFound: '找不到該對話' })
@@ -101,7 +118,10 @@ export class SupportController {
 
   /** 接手或結案 */
   @Put('support/thread')
-  @ApiOperation({ summary: '接手或變更對話狀態', description: ['`TAKE` 為 true 表示把這條對話接手過來。', '', '所需權限：`SUPPORT.AGENT`'].join('\n') })
+  @ApiOperation({
+    summary: '接手或變更對話狀態',
+    description: ['`TAKE` 為 true 表示把這條對話接手過來。', '', '所需權限：`SUPPORT.AGENT`'].join('\n')
+  })
   @ApiBody({
     type: UpdateThreadDto,
     examples: {

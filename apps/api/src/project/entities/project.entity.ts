@@ -1,4 +1,13 @@
-import { Column, CreateDateColumn, Entity, Index, OneToMany, PrimaryGeneratedColumn, Unique, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  Unique,
+  UpdateDateColumn
+} from 'typeorm';
 import { CompanyProject } from './company-project.entity';
 import { ProjectVehicle } from './project-vehicle.entity';
 import { ProjectSection } from './project-section.entity';

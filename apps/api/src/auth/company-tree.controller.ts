@@ -166,7 +166,10 @@ export class CompanyTreeController {
   @ApiBody({
     type: GrantActionsDto,
     examples: {
-      grant: { summary: '開通施工回報', value: { COMPANY_ID: 3, ACTIONS: ['CASE.READ', 'WORK_ORDER.READ', 'WORK_ORDER.UPDATE'] } },
+      grant: {
+        summary: '開通施工回報',
+        value: { COMPANY_ID: 3, ACTIONS: ['CASE.READ', 'WORK_ORDER.READ', 'WORK_ORDER.UPDATE'] }
+      },
       revoke: { summary: '收回到只剩檢視', value: { COMPANY_ID: 3, ACTIONS: ['CASE.READ'] } }
     }
   })

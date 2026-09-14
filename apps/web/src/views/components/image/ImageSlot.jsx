@@ -78,12 +78,19 @@ export default function ImageSlot({ slot, canEdit = true, uploading = false, onP
 
   return (
     <Box sx={{ border: 1, borderColor, borderRadius: 2, overflow: 'hidden', bgcolor: 'action.hover' }}>
-      <Stack direction="row" alignItems="center" spacing={0.6} sx={{ px: 1, py: 0.6, borderBottom: 1, borderColor: 'divider' }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={0.6}
+        sx={{ px: 1, py: 0.6, borderBottom: 1, borderColor: 'divider' }}
+      >
         {isZip && <FolderZipIcon sx={{ fontSize: 15, color: 'text.secondary' }} />}
         <Typography variant="caption" sx={{ fontWeight: 600, flex: 1 }} noWrap>
           {label}
         </Typography>
-        {required && <Chip size="small" color="error" variant="outlined" label="必要" sx={{ height: 15, fontSize: 9 }} />}
+        {required && (
+          <Chip size="small" color="error" variant="outlined" label="必要" sx={{ height: 15, fontSize: 9 }} />
+        )}
       </Stack>
 
       <Box
@@ -123,7 +130,14 @@ export default function ImageSlot({ slot, canEdit = true, uploading = false, onP
           <Stack alignItems="center" spacing={1}>
             <FolderZipIcon sx={{ fontSize: 34, color: 'text.secondary' }} />
             <Stack direction="row" spacing={0.8}>
-              <Button size="small" variant="outlined" startIcon={<DownloadIcon />} href={uploaded.URL} target="_blank" rel="noopener">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                href={uploaded.URL}
+                target="_blank"
+                rel="noopener"
+              >
                 下載
               </Button>
               <Button size="small" variant="contained" disabled={zipLoading} onClick={openZip}>
@@ -193,7 +207,15 @@ export default function ImageSlot({ slot, canEdit = true, uploading = false, onP
         )}
 
         {uploading && (
-          <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', bgcolor: 'rgba(15,23,42,0.35)' }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              placeItems: 'center',
+              bgcolor: 'rgba(15,23,42,0.35)'
+            }}
+          >
             <CircularProgress size={22} />
           </Box>
         )}
@@ -204,7 +226,12 @@ export default function ImageSlot({ slot, canEdit = true, uploading = false, onP
         sx={{ display: 'block', px: 1, py: 0.5, color: error ? 'error.main' : 'text.secondary', fontSize: 10 }}
         noWrap
       >
-        {error || (uploaded ? `${uploaded.IMG_NAME}（${Math.round((uploaded.SIZE_BYTES ?? 0) / 1024)} KB）` : isZip ? '壓縮檔，單檔上限 20MB' : '單檔上限 20MB')}
+        {error ||
+          (uploaded
+            ? `${uploaded.IMG_NAME}（${Math.round((uploaded.SIZE_BYTES ?? 0) / 1024)} KB）`
+            : isZip
+              ? '壓縮檔，單檔上限 20MB'
+              : '單檔上限 20MB')}
       </Typography>
 
       <ImageViewer

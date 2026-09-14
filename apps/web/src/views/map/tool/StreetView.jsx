@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Chip, IconButton, Link, Paper, Stack, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Chip,
+  IconButton,
+  Link,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography
+} from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -74,12 +86,23 @@ export default function StreetView({ point, onClose }) {
         flexDirection: 'column'
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, py: 1, borderBottom: (t) => `1px solid ${t.palette.divider}` }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{ px: 1.5, py: 1, borderBottom: (t) => `1px solid ${t.palette.divider}` }}
+      >
         <Typography variant="subtitle2" sx={{ flex: 1 }}>
           街景
         </Typography>
 
-        <ToggleButtonGroup size="small" exclusive value={source} onChange={(_, v) => v && setSource(v)} sx={{ height: 26 }}>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={source}
+          onChange={(_, v) => v && setSource(v)}
+          sx={{ height: 26 }}
+        >
           <ToggleButton value="google" sx={{ px: 1, fontSize: 11 }}>
             Google
           </ToggleButton>
@@ -130,8 +153,17 @@ export default function StreetView({ point, onClose }) {
         )}
       </Box>
 
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 1.5, py: 0.8, borderTop: (t) => `1px solid ${t.palette.divider}` }}>
-        <Chip size="small" label={links.coord} sx={{ height: 20, fontSize: 11, fontFamily: '"JetBrains Mono", monospace' }} />
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        sx={{ px: 1.5, py: 0.8, borderTop: (t) => `1px solid ${t.palette.divider}` }}
+      >
+        <Chip
+          size="small"
+          label={links.coord}
+          sx={{ height: 20, fontSize: 11, fontFamily: '"JetBrains Mono", monospace' }}
+        />
         {point.label && (
           <Typography variant="caption" color="text.secondary" noWrap>
             {point.label}

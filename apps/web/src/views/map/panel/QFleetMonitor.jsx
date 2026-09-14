@@ -10,8 +10,18 @@ import { useQueryOptions } from '../../../hooks/useQueryOptions';
 
 const OWN_FIELDS = [
   { key: 'PLATE_NO', label: '車牌', placeholder: 'DEMO-001' },
-  { key: 'VEHICLE_TYPE', label: '用途', type: 'multi', options: Object.entries(VEHICLE_TYPE_LABEL).map(([value, label]) => ({ value, label })) },
-  { key: 'STATE', label: '狀態', type: 'multi', options: Object.entries(VEHICLE_STATE_LABEL).map(([value, label]) => ({ value, label })) }
+  {
+    key: 'VEHICLE_TYPE',
+    label: '用途',
+    type: 'multi',
+    options: Object.entries(VEHICLE_TYPE_LABEL).map(([value, label]) => ({ value, label }))
+  },
+  {
+    key: 'STATE',
+    label: '狀態',
+    type: 'multi',
+    options: Object.entries(VEHICLE_STATE_LABEL).map(([value, label]) => ({ value, label }))
+  }
 ];
 
 /**
@@ -116,7 +126,12 @@ export default function QFleetMonitor() {
           <Typography variant="subtitle2" sx={{ flex: 1 }}>
             車隊 {vehicles.length} 台
           </Typography>
-          <Chip size="small" variant="outlined" color={connected ? 'success' : 'default'} label={connected ? '即時' : '連線中'} />
+          <Chip
+            size="small"
+            variant="outlined"
+            color={connected ? 'success' : 'default'}
+            label={connected ? '即時' : '連線中'}
+          />
         </Stack>
 
         <Typography variant="caption" color="text.secondary">
@@ -129,7 +144,15 @@ export default function QFleetMonitor() {
           {vehicles.map((v) => (
             <Box key={v.ID} sx={{ p: 1.2, borderRadius: 2, border: (t) => `1px solid ${t.palette.divider}` }}>
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: VEHICLE_STATE_COLOR[v.STATE], flexShrink: 0 }} />
+                <Box
+                  sx={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: '50%',
+                    bgcolor: VEHICLE_STATE_COLOR[v.STATE],
+                    flexShrink: 0
+                  }}
+                />
                 <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
                   {v.PLATE_NO}
                 </Typography>

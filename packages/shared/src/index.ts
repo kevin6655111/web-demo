@@ -18,3 +18,6 @@ export * from './work-order';
 export * from './image';
 export * from './survey';
 export * from './asset';
+export * from './report';
+export * from './sift';
+export * from './geo';

@@ -12,6 +12,12 @@ app:
   password:
     saltRounds: 10
     minLength: 8
+    cooldownHours: 24 # 兩次改密碼的最短間隔
+    historyDepth: 3 # 不可與最近 3 次相同
+    maxAgeDays: 0 # 0 = 不強制定期更換(NIST 建議)
+  sift:
+    unitPrice: 0.15 # 二篩每件單價
+    errorPrice: 0.3 # 覆核為誤判時每件扣款
 
 database:
   vendor: postgres
@@ -53,7 +59,8 @@ task:
     lineNotify: true # 通知推播      每日 14:00、18:00
     roadEvalStat: true # 道路評估統計  每日 23:00
     dailyCheck: true # 上傳狀態檢查  08:45-23:45 每小時
-    patrolPointCov: true # 覆蓋率統計    每小時
+    patrolPointCov: true # 點位覆蓋率統計 每小時
+    caseProgress: true # 案件處理進度  每小時 15 分
     addressGeocoder: true # 地址編碼      每日 20:00
     pathUpdater: true # 報表檔案清理  每日 01:00
     dashboardSync: true # 儀表板結算    每日 23:30

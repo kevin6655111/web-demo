@@ -1,4 +1,14 @@
-import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Unique,
+  UpdateDateColumn
+} from 'typeorm';
 import { Company } from '@entities/company.entity';
 import { User } from '@entities/user.entity';
 
@@ -18,6 +28,7 @@ export type ReportState = (typeof REPORT_STATE)[number];
 @Entity({ name: 'report_jobs' })
 @Unique('uq_report_dedup_key', ['dedupKey'])
 @Index('idx_report_company_state', ['company', 'state'])
+@Index('idx_report_kind', ['company', 'kind'])
 export class ReportJob {
   @PrimaryGeneratedColumn({ name: 'id' })
   id!: number;
@@ -36,6 +47,14 @@ export class ReportJob {
    */
   @Column({ name: 'dedup_key', type: 'varchar', length: 80 })
   dedupKey!: string;
+
+  /** 報表種類；決定資料來源與版面，`format` 只決定排版方式 */
+  @Column({ name: 'kind', type: 'varchar', length: 20, default: 'CASE_LIST' })
+  kind!: string;
+
+  /** 顯示用的標題快照；種類的中文名以後改了，舊報表的清單仍然對得上當時的名稱 */
+  @Column({ name: 'title', type: 'varchar', length: 60, nullable: true })
+  title?: string;
 
   @Column({ name: 'format', type: 'varchar', length: 10 })
   format!: ReportFormat;

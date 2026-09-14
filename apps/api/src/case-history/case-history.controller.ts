@@ -73,7 +73,10 @@ export class CaseHistoryController {
   @ApiResponse({ status: 200, description: '查詢成功；無歷程時 `status` 為 false' })
   @ApiCommonErrors()
   @RequireAction(ACTION.CASE.READ)
-  async handleGetHistory(@Param('CASE_TYPE') caseType: CaseType, @Param('ID', ParseIntPipe) id: number): Promise<HttpResult> {
+  async handleGetHistory(
+    @Param('CASE_TYPE') caseType: CaseType,
+    @Param('ID', ParseIntPipe) id: number
+  ): Promise<HttpResult> {
     return await this.caseHistoryService.getHistory(caseType, id);
   }
 

@@ -51,7 +51,10 @@ test.describe('圖台', () => {
     // 這是重點：切換功能不會把上一個圖層清掉。
     // 用圖例來驗 —— 它只在「同時有兩個以上可見圖層」時才出現，
     // 正好就是這個測試要證明的事
-    const legend = page.locator('.leaflet-container').locator('..').getByText(/破壞案件\s*\d+/);
+    const legend = page
+      .locator('.leaflet-container')
+      .locator('..')
+      .getByText(/破壞案件\s*\d+/);
     await expect(legend).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/路段評估\s*\d+/)).toBeVisible({ timeout: 15_000 });
   });

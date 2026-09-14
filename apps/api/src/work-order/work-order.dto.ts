@@ -105,13 +105,21 @@ class BaseOrderDto {
  * **未帶代表不異動、帶空陣列代表清空指派** —— 兩者在 PATCH 裡是不同的意思。
  */
 class WorkerDto {
-  @ApiPropertyOptional({ example: [4, 5], isArray: true, description: '施工人員的使用者 id；不帶表示不異動，空陣列表示清空指派' })
+  @ApiPropertyOptional({
+    example: [4, 5],
+    isArray: true,
+    description: '施工人員的使用者 id；不帶表示不異動，空陣列表示清空指派'
+  })
   @IsOptional()
   @ToNumberArray()
   @IsInt({ each: true })
   WORKER_USER_ID?: number[];
 
-  @ApiPropertyOptional({ enum: WORK_UNIT_KEYS, example: 'SELF', description: '施工單位：SELF 自主 / VENDOR 廠商 / OFFICE 公所；計價方式不同' })
+  @ApiPropertyOptional({
+    enum: WORK_UNIT_KEYS,
+    example: 'SELF',
+    description: '施工單位：SELF 自主 / VENDOR 廠商 / OFFICE 公所；計價方式不同'
+  })
   @IsOptional()
   @IsIn(WORK_UNIT_KEYS)
   WORK_UNIT?: string;
@@ -240,7 +248,12 @@ class SampleDto {
   @IsDateString()
   SAMPLE_DATE?: string;
 
-  @ApiPropertyOptional({ enum: TEST_ITEM_DEF, isArray: true, example: ['壓實度', '厚度'], description: '試驗項目；PB 且有取樣時必填' })
+  @ApiPropertyOptional({
+    enum: TEST_ITEM_DEF,
+    isArray: true,
+    example: ['壓實度', '厚度'],
+    description: '試驗項目；PB 且有取樣時必填'
+  })
   @ValidateIf((o) => o.TYPE === 'PB' && o.SAMPLE_TAKEN === true)
   @IsDefined({ message: '有取樣時 TEST_ITEM 必填' })
   @ToArray()
@@ -449,7 +462,11 @@ export class WorkOrderQueryDto {
   @IsBoolean()
   MISSING_IMAGE?: boolean;
 
-  @ApiPropertyOptional({ example: 'DISPATCH_DATE', enum: ['DISPATCH_DATE', 'DUE_DATE', 'CASE_NUM', 'STATUS'], default: 'DISPATCH_DATE' })
+  @ApiPropertyOptional({
+    example: 'DISPATCH_DATE',
+    enum: ['DISPATCH_DATE', 'DUE_DATE', 'CASE_NUM', 'STATUS'],
+    default: 'DISPATCH_DATE'
+  })
   @IsOptional()
   @IsIn(['DISPATCH_DATE', 'DUE_DATE', 'CASE_NUM', 'STATUS'])
   SORT_BY?: string = 'DISPATCH_DATE';

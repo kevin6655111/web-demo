@@ -59,7 +59,10 @@ test.describe('派工單照片欄位', () => {
 
     // 用真的 regex 而不是 text= 選擇器字串：後者的跳脫規則與 JS 不同，
     // \d 會被當成字面的 d
-    await page.getByText(/[A-Z0-9]+P[A-D]\d{8}/).first().click();
+    await page
+      .getByText(/[A-Z0-9]+P[A-D]\d{8}/)
+      .first()
+      .click();
 
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('tab', { name: /施工照片/ }).click();

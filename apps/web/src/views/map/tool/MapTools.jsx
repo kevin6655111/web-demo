@@ -59,7 +59,15 @@ function ToolButton({ title, active, onClick, children }) {
  * 工具狀態由呼叫端持有(受控元件)：地圖頁面之間切換時，
  * 使用者選好的圖層與底圖不該被重置。
  */
-export default function MapTools({ basemap, onBasemapChange, layers = [], onLayerToggle, onLayerOpacity, onLayerMode, onStreetView }) {
+export default function MapTools({
+  basemap,
+  onBasemapChange,
+  layers = [],
+  onLayerToggle,
+  onLayerOpacity,
+  onLayerMode,
+  onStreetView
+}) {
   const map = useMap();
   const [anchor, setAnchor] = useState(null);
   const [panel, setPanel] = useState(null);
@@ -166,12 +174,20 @@ export default function MapTools({ basemap, onBasemapChange, layers = [], onLaye
           <MyLocationIcon fontSize="small" />
         </ToolButton>
 
-        <ToolButton title={measuring ? '結束量測' : '距離量測'} active={measuring} onClick={() => setMeasuring((v) => !v)}>
+        <ToolButton
+          title={measuring ? '結束量測' : '距離量測'}
+          active={measuring}
+          onClick={() => setMeasuring((v) => !v)}
+        >
           <StraightenIcon fontSize="small" />
         </ToolButton>
 
         {onStreetView && (
-          <ToolButton title={pegman ? '取消街景' : '街景：點地圖選位置'} active={pegman} onClick={() => setPegman((v) => !v)}>
+          <ToolButton
+            title={pegman ? '取消街景' : '街景：點地圖選位置'}
+            active={pegman}
+            onClick={() => setPegman((v) => !v)}
+          >
             <StreetviewIcon fontSize="small" />
           </ToolButton>
         )}
@@ -182,7 +198,9 @@ export default function MapTools({ basemap, onBasemapChange, layers = [], onLaye
       </Stack>
 
       {(measuring || pegman) && (
-        <Paper sx={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, px: 2, py: 1 }}>
+        <Paper
+          sx={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, px: 2, py: 1 }}
+        >
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Typography variant="body2">
               {pegman
@@ -304,8 +322,18 @@ export default function MapTools({ basemap, onBasemapChange, layers = [], onLaye
             <Typography variant="caption" color="text.secondary">
               民眾檢舉常常只給經緯度
             </Typography>
-            <TextField size="small" label="經度" value={coord.lng} onChange={(e) => setCoord({ ...coord, lng: e.target.value })} />
-            <TextField size="small" label="緯度" value={coord.lat} onChange={(e) => setCoord({ ...coord, lat: e.target.value })} />
+            <TextField
+              size="small"
+              label="經度"
+              value={coord.lng}
+              onChange={(e) => setCoord({ ...coord, lng: e.target.value })}
+            />
+            <TextField
+              size="small"
+              label="緯度"
+              value={coord.lat}
+              onChange={(e) => setCoord({ ...coord, lat: e.target.value })}
+            />
             <IconButton onClick={flyToCoord} sx={{ alignSelf: 'flex-end' }} color="primary">
               <SearchIcon />
             </IconButton>

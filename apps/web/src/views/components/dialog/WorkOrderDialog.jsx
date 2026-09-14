@@ -147,7 +147,9 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
       EDITABLE.filter((k) => {
         const a = origin[k] ?? '';
         const b = form[k] ?? '';
-        return Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a ?? []) !== JSON.stringify(b ?? []) : String(a) !== String(b);
+        return Array.isArray(a) || Array.isArray(b)
+          ? JSON.stringify(a ?? []) !== JSON.stringify(b ?? [])
+          : String(a) !== String(b);
       }).map((k) => [k, form[k]])
     );
   }, [origin, form]);
@@ -204,7 +206,11 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
     setError('');
 
     try {
-      const res = await workOrderApi.updateStatus({ ID: w.ID, STATUS: statusValue, REJECT_REASON: rejectReason || undefined });
+      const res = await workOrderApi.updateStatus({
+        ID: w.ID,
+        STATUS: statusValue,
+        REJECT_REASON: rejectReason || undefined
+      });
       setNotice(res.message);
       onSaved?.();
 
@@ -394,7 +400,12 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
                     <Chip size="small" variant="outlined" label={CasePresenter.workOrderTypeLabel(w.TYPE)} />
                     {overdue && <Chip size="small" color="error" label="已逾期" />}
                     {w.MISSING_IMAGE_COUNT > 0 && (
-                      <Chip size="small" color="warning" variant="outlined" label={`缺 ${w.MISSING_IMAGE_COUNT} 張必要照片`} />
+                      <Chip
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        label={`缺 ${w.MISSING_IMAGE_COUNT} 張必要照片`}
+                      />
                     )}
                   </>
                 )}
@@ -416,7 +427,10 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
           sx={{ px: 2, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none' } }}
         >
           <Tab value="info" label="單據內容" />
-          <Tab value="image" label={w?.MISSING_IMAGE_COUNT > 0 ? `施工照片（缺 ${w.MISSING_IMAGE_COUNT}）` : '施工照片'} />
+          <Tab
+            value="image"
+            label={w?.MISSING_IMAGE_COUNT > 0 ? `施工照片（缺 ${w.MISSING_IMAGE_COUNT}）` : '施工照片'}
+          />
         </Tabs>
 
         <DialogContent dividers sx={{ p: 2 }}>
@@ -435,13 +449,19 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
 
           {w && tab === 'info' && (
             <Stack spacing={1.5}>
-              {status >= 3 && <Alert severity="info">此單已完工，內容不可修改。要改就作廢重開 —— 已驗收的單被改過，驗收紀錄就失去意義。</Alert>}
+              {status >= 3 && (
+                <Alert severity="info">
+                  此單已完工，內容不可修改。要改就作廢重開 —— 已驗收的單被改過，驗收紀錄就失去意義。
+                </Alert>
+              )}
 
               <SpecSheet groups={groups} value={sheetValue} errors={errors} onChange={setForm} readOnly={!canEdit} />
             </Stack>
           )}
 
-          {w && tab === 'image' && <ImageUploadField orderId={w.ID} orderType={type} canEdit={canEdit} onChanged={() => load(w.ID)} />}
+          {w && tab === 'image' && (
+            <ImageUploadField orderId={w.ID} orderType={type} canEdit={canEdit} onChanged={() => load(w.ID)} />
+          )}
         </DialogContent>
 
         <DialogActions sx={{ px: 2.5, py: 1.5 }}>
@@ -458,7 +478,12 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
           )}
 
           {canReport && status === 1 && (
-            <Button color="info" startIcon={<AssignmentTurnedInIcon />} disabled={saving} onClick={() => changeStatus(2)}>
+            <Button
+              color="info"
+              startIcon={<AssignmentTurnedInIcon />}
+              disabled={saving}
+              onClick={() => changeStatus(2)}
+            >
               回報案件
             </Button>
           )}
@@ -480,14 +505,23 @@ export default function WorkOrderDialog({ open, row, onClose, onSaved }) {
               color="error"
               startIcon={<DeleteOutlineIcon />}
               disabled={saving}
-              onClick={() => window.confirm(`確定要刪除派工單 ${w.CASE_NUM}？來源案件會退回「觀察中」，可再次派工。`) && changeStatus(-1)}
+              onClick={() =>
+                window.confirm(`確定要刪除派工單 ${w.CASE_NUM}？來源案件會退回「觀察中」，可再次派工。`) &&
+                changeStatus(-1)
+              }
             >
               刪除派工單
             </Button>
           )}
 
           {canAccept && (
-            <Button variant="contained" color="success" startIcon={<CheckCircleIcon />} disabled={saving} onClick={() => changeStatus(3)}>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<CheckCircleIcon />}
+              disabled={saving}
+              onClick={() => changeStatus(3)}
+            >
               已完工
             </Button>
           )}

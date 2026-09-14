@@ -123,7 +123,14 @@ export default function QRoadEval() {
                       </Typography>
                     </Stack>
                     <Box sx={{ height: 5, borderRadius: 3, bgcolor: 'action.selected' }}>
-                      <Box sx={{ width: `${ratio}%`, height: '100%', borderRadius: 3, background: MAINTAIN_COLOR[b.LEVEL] }} />
+                      <Box
+                        sx={{
+                          width: `${ratio}%`,
+                          height: '100%',
+                          borderRadius: 3,
+                          background: MAINTAIN_COLOR[b.LEVEL]
+                        }}
+                      />
                     </Box>
                   </Box>
                 );
@@ -136,7 +143,10 @@ export default function QRoadEval() {
               <Typography variant="body2" color="text.secondary">
                 需維修比例
               </Typography>
-              <Typography variant="body2" sx={{ color: summary.NEED_REPAIR_RATE > 30 ? 'error.main' : 'text.primary', fontWeight: 600 }}>
+              <Typography
+                variant="body2"
+                sx={{ color: summary.NEED_REPAIR_RATE > 30 ? 'error.main' : 'text.primary', fontWeight: 600 }}
+              >
                 {summary.NEED_REPAIR} / {summary.TOTAL}（{summary.NEED_REPAIR_RATE}%）
               </Typography>
             </Stack>
@@ -144,14 +154,21 @@ export default function QRoadEval() {
         )}
 
         {can('ROAD_EVAL.UPDATE') && (
-          <Button size="small" variant="outlined" fullWidth startIcon={<RefreshIcon />} onClick={reevaluate} disabled={busy} sx={{ mt: 1.5 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            fullWidth
+            startIcon={<RefreshIcon />}
+            onClick={reevaluate}
+            disabled={busy}
+            sx={{ mt: 1.5 }}
+          >
             {busy ? '重算中…' : '依案件密度重算'}
           </Button>
         )}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-          PCI 由案件密度推算；鋪面調查的實測分數會覆蓋這個推算值。
-          把「破壞案件」圖層一起打開，就看得出分數是怎麼來的。
+          PCI 由案件密度推算；鋪面調查的實測分數會覆蓋這個推算值。 把「破壞案件」圖層一起打開，就看得出分數是怎麼來的。
         </Typography>
       </Paper>
     </Stack>

@@ -8,6 +8,8 @@ import CaseView from './views/CaseView';
 import OrderModView from './views/OrderModView';
 import ReportView from './views/ReportView';
 import ManageView from './views/ManageView';
+import SiftView from './views/SiftView';
+import SurveyView from './views/SurveyView';
 
 // 地圖(leaflet)與圖表(recharts)加起來超過 400KB，只有真的開到才下載
 const DashboardView = lazy(() => import('./views/DashboardView'));
@@ -47,6 +49,8 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardView />} />
           <Route path="/map" element={<MapView />} />
           <Route path="/case" element={<CaseView />} />
+          <Route path="/sift" element={<SiftView />} />
+          <Route path="/survey" element={<SurveyView />} />
           <Route path="/workorder" element={<OrderModView />} />
           <Route path="/report" element={<ReportView />} />
           <Route path="/manage" element={<ManageView />} />

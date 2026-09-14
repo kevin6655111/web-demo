@@ -35,15 +35,31 @@ export function SurveyOrderDialog({ open, row, onClose, onSaved }) {
     setErrors({});
     setError('');
 
-    authApi.orgUsers().then((res) => setUsers((res.data ?? []).filter((u) => u.ACTIVE))).catch(() => {});
-    projectApi.list().then((res) => setProjects(res.data ?? [])).catch(() => {});
+    authApi
+      .orgUsers()
+      .then((res) => setUsers((res.data ?? []).filter((u) => u.ACTIVE)))
+      .catch(() => {});
+    projectApi
+      .list()
+      .then((res) => setProjects(res.data ?? []))
+      .catch(() => {});
   }, [open, row]);
 
   const fields = [
     { key: 'TITLE', label: '調查標題', required: true, full: true, placeholder: '臺灣大道路面爭議調查' },
     { key: 'REQUESTER', label: '委託單位', placeholder: '示範市政府建設局' },
-    { key: 'SURVEYOR_ID', label: '調查人員', type: 'select', options: users.map((u) => ({ value: String(u.ID), label: u.USER_NAME })) },
-    { key: 'PROJECT_ID', label: '所屬標案', type: 'select', options: projects.map((p) => ({ value: String(p.ID), label: p.CODE })) },
+    {
+      key: 'SURVEYOR_ID',
+      label: '調查人員',
+      type: 'select',
+      options: users.map((u) => ({ value: String(u.ID), label: u.USER_NAME }))
+    },
+    {
+      key: 'PROJECT_ID',
+      label: '所屬標案',
+      type: 'select',
+      options: projects.map((p) => ({ value: String(p.ID), label: p.CODE }))
+    },
     { key: 'DUE_DATE', label: '期限', type: 'date' },
     {
       key: 'STATE',
@@ -125,7 +141,10 @@ export function SurveyCaseDialog({ open, orderId, row, onClose, onSaved }) {
     setErrors({});
     setError('');
 
-    roadEvalApi.segments({}).then((res) => setSegments(res.data ?? [])).catch(() => {});
+    roadEvalApi
+      .segments({})
+      .then((res) => setSegments(res.data ?? []))
+      .catch(() => {});
   }, [open, row]);
 
   const fields = [
@@ -145,7 +164,10 @@ export function SurveyCaseDialog({ open, orderId, row, onClose, onSaved }) {
       label: '對應路段',
       type: 'select',
       full: true,
-      options: segments.map((s) => ({ value: String(s.ID), label: `${s.CODE} ${s.ROAD_NAME}${s.SECTION ?? ''}（PCI ${s.PCI}）` })),
+      options: segments.map((s) => ({
+        value: String(s.ID),
+        label: `${s.CODE} ${s.ROAD_NAME}${s.SECTION ?? ''}（PCI ${s.PCI}）`
+      })),
       hint: '調查完成且填了 PCI 時，會回寫這個路段的評分'
     },
     { key: 'THICKNESS_CM', label: '鋪面厚度', type: 'number', unit: 'cm' },

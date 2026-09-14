@@ -43,6 +43,25 @@ export const roadEvalApi = {
   evaluate: (body) => api.post('/roadeval/evaluate', body ?? {})
 };
 
+/**
+ * 道路設定與巡查點。
+ *
+ * 線段、區塊、巡查點都以 GeoJSON `FeatureCollection` 回傳 ——
+ * 圖台的每一種圖層走同一個格式，新增一種圖徵不必在前端多寫一種解析。
+ */
+export const roadSettingApi = {
+  lines: (params) => api.get('/road-setting/line', params),
+  setLinesActive: (IDS, IS_ACTIVE, REMARK) => api.put('/road-setting/line/active', { IDS, IS_ACTIVE, REMARK }),
+  setJurisdiction: (IDS, JURISDICTION) => api.put('/road-setting/line/jurisdiction', { IDS, JURISDICTION }),
+  renameLine: (ID, DISPLAY_NAME) => api.put('/road-setting/line/name', { ID, DISPLAY_NAME }),
+  blocks: (params) => api.get('/road-setting/block', params),
+  updateBlocks: (body) => api.put('/road-setting/block', body),
+  points: (params) => api.get('/road-setting/point', params),
+  upsertPoint: (body) => api.post('/road-setting/point', body),
+  pointCoverage: (params) => api.get('/road-setting/point-coverage', params),
+  draw: (ROUTE, BUFFER_M) => api.post('/road-setting/draw', { ROUTE, BUFFER_M })
+};
+
 export const patrolPlanApi = {
   list: (params) => api.get('/patrol/plan', params),
   layer: (params) => api.get('/patrol/plan/layer', params),
@@ -50,11 +69,38 @@ export const patrolPlanApi = {
   coverage: (params) => api.get('/patrol/coverage', params)
 };
 
+/**
+ * 鋪面調查。
+ *
+ * 委託單底下有明細(業主指定的路段)，明細底下才是調查點 ——
+ * 進度的分母是明細的取樣數，不是已經排了幾個點。
+ */
 export const surveyApi = {
   orders: (params) => api.get('/survey/order', params),
   upsertOrder: (body) => api.post('/survey/order', body),
+  details: (orderId) => api.get(`/survey/order/${orderId}/detail`),
+  upsertDetail: (body) => api.post('/survey/order/detail', body),
   cases: (params) => api.get('/survey/case', params),
-  upsertCase: (body) => api.post('/survey/case', body)
+  upsertCase: (body) => api.post('/survey/case', body),
+  // 狀態是批次的：一趟現場會收十幾個點
+  batchStatus: (IDS, STATE, REASON) => api.put('/survey/case/status', { IDS, STATE, REASON }),
+  expertCases: (params) => api.get('/survey/expert/case', params),
+  transfer: (IDS, TO_ORDER_ID, REASON, TO_DETAIL_ID) =>
+    api.put('/survey/expert/transfer', { IDS, TO_ORDER_ID, REASON, TO_DETAIL_ID })
+};
+
+/**
+ * 二篩。
+ *
+ * 判定與覆核都是**批次**：一批看幾十張圖，逐筆送等於逐筆按五十次。
+ * 兩者是不同端點而不是同一支帶參數 —— 權限不同，而且擋下的條件也不同。
+ */
+export const siftApi = {
+  list: (params) => api.get('/sift/case', params),
+  judge: (IDS, STATUS, REMARK) => api.put('/sift/judge', { IDS, STATUS, REMARK }),
+  review: (IDS, STATUS, REMARK) => api.put('/sift/review', { IDS, STATUS, REMARK }),
+  stats: (params) => api.get('/sift/stats', params),
+  salary: (params) => api.get('/sift/salary', params)
 };
 
 export const caseApi = {
@@ -145,9 +191,16 @@ export const coreApi = {
   deleteAnnouncement: (id) => api.del(`/core/announcement/${id}`)
 };
 
+/**
+ * 報表。
+ *
+ * `kinds()` 回傳每一種報表接受哪些參數與格式 —— 前端依它決定要顯示什麼欄位，
+ * 而不是把十一種報表的條件全部攤開讓使用者自己挑。
+ */
 export const reportApi = {
+  kinds: () => api.get('/report/kind'),
   create: (body) => api.post('/report', body),
-  list: () => api.get('/report'),
+  list: (params) => api.get('/report', params),
   get: (id) => api.get(`/report/${id}`),
   remove: (id) => api.del(`/report/${id}`)
 };

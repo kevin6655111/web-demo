@@ -14,7 +14,9 @@ import { ApiResponse } from '@nestjs/swagger';
  * @param options.conflict   有 409 情境時補上說明(冪等衝突、重複資料)
  * @param options.notFound   有 404 情境時補上說明
  */
-export const ApiCommonErrors = (options: { badRequest?: string; forbidden?: string; conflict?: string; notFound?: string } = {}) =>
+export const ApiCommonErrors = (
+  options: { badRequest?: string; forbidden?: string; conflict?: string; notFound?: string } = {}
+) =>
   applyDecorators(
     ApiResponse({ status: 400, description: options.badRequest ?? '參數錯誤: 欄位缺漏、型別錯誤，或傳入未定義的欄位' }),
     ApiResponse({ status: 401, description: '未認證: token 缺漏、格式錯誤或已失效' }),

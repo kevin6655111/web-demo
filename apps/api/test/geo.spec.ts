@@ -2,11 +2,34 @@ import { describe, it, expect } from 'vitest';
 import { GeoService } from '@/geo/geo.service';
 
 /**
- * 逆地理編碼的結果會被寫進案件，而佇列的工作可能被重試好幾次。
- * 只要它不是決定性的，重試就會讓同一筆案件的路名跳來跳去 —— 這條測試守的是這件事。
+ * 逆地理編碼的結果會被寫進案件，而佇列的工作可能被重試多次。
+ * 若結果不具決定性，重試會讓同一筆案件的路名反覆變動。
+ *
+ * 這裡驗證的是**查無門牌時的替代路名**：門牌圖資的涵蓋範圍不等於案件的分布範圍，
+ * 山區與新闢道路查不到門牌是常態，此時仍須給出穩定的結果。
+ * 因此 LocationService 一律以「查無門牌」回應。
  */
+const noAddressFound = {
+  reverse: async () => ({
+    fullAddress: null,
+    county: null,
+    district: null,
+    cavlge: null,
+    road: null,
+    number: null,
+    distanceM: null
+  })
+} as any;
+
+/** 這組測試不碰快取路徑，給一個永遠未命中的替身即可 */
+const noCache = {
+  remember: async (_key: string, _ttl: number, compute: () => Promise<unknown>) => ({
+    value: await compute(),
+    cached: false
+  })
+} as any;
 describe('GeoService.reverseGeocode', () => {
-  const geoService = new GeoService({} as any);
+  const geoService = new GeoService({} as any, noAddressFound, noCache);
 
   it('同一座標永遠得到同一個路名', async () => {
     const a = await geoService.reverseGeocode(120.6478, 24.1636);
@@ -33,7 +56,7 @@ describe('GeoService.reverseGeocode', () => {
  * 陣列取值變成 undefined，路名就會長出「民生路undefined」。
  */
 describe('GeoService.reverseGeocode 邊界', () => {
-  const geoService = new GeoService({} as any);
+  const geoService = new GeoService({} as any, noAddressFound, noCache);
 
   it('大量座標都不會產生 undefined 的路名', async () => {
     const results = await Promise.all(

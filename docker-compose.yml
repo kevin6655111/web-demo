@@ -18,10 +18,10 @@ services:
     environment:
       - TZ=Asia/Taipei
     ports:
-      - "18080:80" # 主要入口
+      - '18080:80' # 主要入口
       # 備援 port：給拿不到主要 port 的環境用（防火牆擋掉、或機房只配一個 port）。
       # 預設綁 127.0.0.1 等於沒對外開；要用就設 HTTP_ALT_PORT=8080
-      - "${HTTP_ALT_PORT:-127.0.0.1:18081}:8081"
+      - '${HTTP_ALT_PORT:-127.0.0.1:18081}:8081'
     depends_on:
       api:
         condition: service_healthy
@@ -36,16 +36,16 @@ services:
       dockerfile: Dockerfile
       target: backend
     container_name: patrol-api
-    command: ["node", "-r", "./register.js", "dist/main/api.js"]
+    command: ['node', '-r', './register.js', 'dist/main/api.js']
     environment:
-      - NODE_ENV=production   # 決定讀 prod.yaml 還是 dev.yaml
+      - NODE_ENV=production # 決定讀 prod.yaml 還是 dev.yaml
       - PORT=3008
       - TZ=Asia/Taipei
       - DOMAIN=${DOMAIN:-localhost}
     expose:
-      - "3008"
+      - '3008'
     ports:
-      - "13008:3008"
+      - '13008:3008'
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +61,13 @@ services:
     restart: unless-stopped
     networks: [patrol-net]
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3008/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3008/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -73,14 +79,14 @@ services:
       dockerfile: Dockerfile
       target: backend
     container_name: patrol-tiles
-    command: ["node", "-r", "./register.js", "dist/main/tiles.js"]
+    command: ['node', '-r', './register.js', 'dist/main/tiles.js']
     environment:
       - NODE_ENV=production
       - PORT=3010
-      - RUN_MIGRATIONS=false   # 只有 api 跑 migration
+      - RUN_MIGRATIONS=false # 只有 api 跑 migration
       - TZ=Asia/Taipei
     expose:
-      - "3010"
+      - '3010'
     depends_on:
       api:
         condition: service_healthy
@@ -90,20 +96,20 @@ services:
     restart: unless-stopped
     networks: [patrol-net]
 
-  worker:
+  case-worker:
     build:
       context: .
       dockerfile: Dockerfile
       target: backend
-    container_name: patrol-worker
-    command: ["node", "-r", "./register.js", "dist/main/worker.js"]
+    container_name: patrol-case-worker
+    command: ['node', '-r', './register.js', 'dist/main/case-worker.js']
     environment:
       - NODE_ENV=production
       - RUN_MIGRATIONS=false
       - TZ=Asia/Taipei
     depends_on:
       api:
-        condition: service_healthy   # 等 API 跑完 migration 再啟動，避免兩邊搶著建表
+        condition: service_healthy # 等 API 跑完 migration 再啟動，避免兩邊搶著建表
     volumes:
       - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
       - ./.env:/repo/.env:ro
@@ -122,7 +128,7 @@ services:
       dockerfile: Dockerfile
       target: backend
     container_name: patrol-report-worker
-    command: ["node", "-r", "./register.js", "dist/main/report-worker.js"]
+    command: ['node', '-r', './register.js', 'dist/main/report-worker.js']
     environment:
       - NODE_ENV=production
       - RUN_MIGRATIONS=false
@@ -142,13 +148,39 @@ services:
         limits:
           memory: 2g
 
+  # 郵件佇列：與其他 worker 分開，因為失敗模式不同 ——
+  # SMTP 故障時郵件會長時間卡住重試，不該拖累案件處理與報表產製
+  mail-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: patrol-mail-worker
+    command: ['node', '-r', './register.js', 'dist/main/mail-worker.js']
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Taipei
+      - RUN_MIGRATIONS=false
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [patrol-net]
+    # 郵件是最不吃資源的行程；與報表放在一起的話，
+    # 記憶體上限必須遷就報表，等於為了幾 KB 的郵件保留幾百 MB
+    mem_limit: 256m
+    volumes:
+      - ./config/config.prod.yaml:/repo/config/config.prod.yaml:ro
+      - ./.env:/repo/.env:ro
+      - worker_logs:/repo/apps/api/logs
+
   scheduler:
     build:
       context: .
       dockerfile: Dockerfile
       target: backend
     container_name: patrol-scheduler
-    command: ["node", "-r", "./register.js", "dist/main/scheduler.js"]
+    command: ['node', '-r', './register.js', 'dist/main/scheduler.js']
     environment:
       - NODE_ENV=production
       - RUN_MIGRATIONS=false
@@ -175,13 +207,13 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=patrol_demo
     ports:
-      - "15432:5432"
+      - '15432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks: [patrol-net]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d patrol_demo"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d patrol_demo']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -190,7 +222,7 @@ services:
     image: redis:7.4-alpine
     container_name: patrol-redis
     ports:
-      - "16379:6379"
+      - '16379:6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -204,15 +236,15 @@ services:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     ports:
-      - "19000:9000"
-      - "19001:9001"
+      - '19000:9000'
+      - '19001:9001'
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     restart: unless-stopped
     networks: [patrol-net]
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -226,7 +258,7 @@ services:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     expose:
-      - "3100"
+      - '3100'
     restart: unless-stopped
     networks: [patrol-net]
 
@@ -258,7 +290,7 @@ services:
       # 內嵌到自家看板時需要；Demo 預設關閉
       - GF_SECURITY_ALLOW_EMBEDDING=false
     ports:
-      - "13000:3000"
+      - '13000:3000'
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro

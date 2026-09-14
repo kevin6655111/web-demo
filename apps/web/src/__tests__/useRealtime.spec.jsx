@@ -1,5 +1,6 @@
+import { StrictMode } from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { useRealtime } from '../hooks/useRealtime';
 
 /** 可控的假 WebSocket：讓測試決定何時開、何時斷 */
@@ -18,10 +19,16 @@ class FakeWebSocket {
     this.sent.push(JSON.parse(data));
   }
 
+  /**
+   * 瀏覽器的 close() 只是「開始關」：readyState 立刻變，
+   * onclose 要等回合結束之後才送達。這個時間差正是連線外洩的成因，
+   * 替身同步觸發的話就永遠測不到。
+   */
   close(code = 1000) {
+    if (this.readyState === 3) return;
     this.readyState = 3;
     // 真實的瀏覽器一定會帶 CloseEvent，替身也要帶 —— 否則測不到依 code 分支的邏輯
-    this.onclose?.({ code, reason: '' });
+    setTimeout(() => this.onclose?.({ code, reason: '' }), 0);
   }
 
   open() {
@@ -109,6 +116,20 @@ describe('useRealtime', () => {
     expect(onExpired).toHaveBeenCalled();
 
     window.removeEventListener('auth:expired', onExpired);
+  });
+
+  it('StrictMode 重掛載不會留下沒人管的連線', () => {
+    renderHook(() => useRealtime({ channels: ['case'], onMessage: vi.fn() }), { wrapper: StrictMode });
+
+    // StrictMode 會刻意跑一次「掛載→卸載→再掛載」：第一條被關掉，第二條才是要留下的
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    act(() => FakeWebSocket.instances[1].open());
+
+    // 第一條的 close 事件在這時候才抵達 —— 它屬於已經結束的那一輪，不該觸發重連
+    act(() => vi.advanceTimersByTime(30000));
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(FakeWebSocket.instances.filter((s) => s.readyState !== 3)).toHaveLength(1);
   });
 
   it('卸載後不再重連', () => {

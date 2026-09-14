@@ -1,4 +1,18 @@
-import { CASE_STATUS_LABEL, CRACK_LABEL, DEGREE_LABEL, EDITED_LABEL, MAINTENANCE_LABEL, MAINTENANCE_TYPE_LABEL, MATERIAL_LABEL, NEED_REPAIR_LABEL, PROJECT_STATE_LABEL, SOURCE_LABEL, WORK_ORDER_LABEL, WORK_ORDER_TYPE_LABEL, WORK_UNIT_LABEL } from './vocabulary';
+import {
+  CASE_STATUS_LABEL,
+  CRACK_LABEL,
+  DEGREE_LABEL,
+  EDITED_LABEL,
+  MAINTENANCE_LABEL,
+  MAINTENANCE_TYPE_LABEL,
+  MATERIAL_LABEL,
+  NEED_REPAIR_LABEL,
+  PROJECT_STATE_LABEL,
+  SOURCE_LABEL,
+  WORK_ORDER_LABEL,
+  WORK_ORDER_TYPE_LABEL,
+  WORK_UNIT_LABEL
+} from './vocabulary';
 
 /** 代碼表 → 下拉選項；數字代碼的 key 會被物件轉成字串，這裡轉回來 */
 export const opts = (map, numeric = false) =>
@@ -158,7 +172,13 @@ export function workOrderQueryFields({ projects = [], workers = [], districts = 
     { key: 'DUE_FROM', label: '限期起', type: 'date', advanced: true },
     { key: 'DUE_TO', label: '限期迄', type: 'date', advanced: true },
     // 驗收前最常用的兩個篩選：逾期未完工、缺必要照片
-    { key: 'OVERDUE', label: '逾期', type: 'select', options: [{ value: 'true', label: '只看逾期未完工' }], advanced: true },
+    {
+      key: 'OVERDUE',
+      label: '逾期',
+      type: 'select',
+      options: [{ value: 'true', label: '只看逾期未完工' }],
+      advanced: true
+    },
     {
       key: 'MISSING_IMAGE',
       label: '照片缺件',
@@ -211,6 +231,57 @@ export function maintenanceQueryFields({ projects = [], districts = [], inspecto
       advanced: true
     },
     { key: 'CAVLGE', label: '里', advanced: true, width: 120 }
+  ];
+}
+
+/**
+ * 二篩查詢條件。
+ *
+ * 與案件查詢共用空間條件，但**沒有狀態欄位** —— 二篩的狀態範圍由分頁決定
+ * (判讀看未審、覆核看已判)，讓使用者自己選狀態會讓「判讀作業」這個分頁
+ * 出現已經判完的案件，而那正是它要排除的。
+ */
+export function siftQueryFields({ projects = [], districts = [], cars = [] } = {}) {
+  return [
+    { key: 'START_DATE', label: '檢測起', type: 'date' },
+    { key: 'END_DATE', label: '檢測迄', type: 'date' },
+    {
+      key: 'CRACK_TYPE',
+      label: '破壞類型',
+      type: 'multi',
+      options: Object.entries(CRACK_LABEL).map(([value, label]) => ({ value, label }))
+    },
+    { key: 'COUNTY', label: '縣市', width: 120, advanced: true },
+    {
+      key: 'DISTRICT',
+      label: '行政區',
+      type: 'multi',
+      options: districts.map((d) => ({ value: d.DISTRICT, label: d.DISTRICT })),
+      advanced: true
+    },
+    {
+      key: 'PRJ_ID',
+      label: '標案',
+      type: 'multi',
+      options: projects.map((p) => ({ value: p.PRJ_ID, label: `${p.PRJ_ID} ${p.PRJ_NAME}` })),
+      advanced: true,
+      width: 200
+    },
+    {
+      key: 'CAR',
+      label: '車輛',
+      type: cars.length ? 'select' : 'text',
+      options: cars.map((c) => ({ value: c.PLATE_NO, label: c.PLATE_NO })),
+      advanced: true,
+      width: 140
+    },
+    {
+      key: 'DEGREE',
+      label: '破壞程度',
+      type: 'multi',
+      options: Object.entries(DEGREE_LABEL).map(([value, label]) => ({ value, label })),
+      advanced: true
+    }
   ];
 }
 

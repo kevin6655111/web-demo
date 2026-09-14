@@ -9,9 +9,11 @@ import QVehicleTrack from './panel/QVehicleTrack';
 import QFleetMonitor from './panel/QFleetMonitor';
 import QRoadEval from './panel/QRoadEval';
 import QGIS from './panel/QGIS';
+import QRoadSetting from './panel/QRoadSetting';
+import QPatrolPoint from './panel/QPatrolPoint';
 
 /** 面板名稱對應到後端導覽定義的 COMPONENT */
-const PANELS = { QVehicleCrack, QVehicleTrack, QFleetMonitor, QRoadEval, QGIS };
+const PANELS = { QVehicleCrack, QVehicleTrack, QFleetMonitor, QRoadEval, QRoadSetting, QPatrolPoint, QGIS };
 
 /**
  * 圖台。

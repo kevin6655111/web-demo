@@ -42,7 +42,14 @@ function makeRandom(seed: number): () => number {
 }
 
 /** 產生一張示意的破壞照片(SVG) */
-function crackSvg(opts: { caseNum: string; crackType: string; degree: string; detected: string; detect: boolean; seed: number }): string {
+function crackSvg(opts: {
+  caseNum: string;
+  crackType: string;
+  degree: string;
+  detected: string;
+  detect: boolean;
+  seed: number;
+}): string {
   const style = CRACK_STYLE[opts.crackType] ?? CRACK_STYLE.Potholes;
   const rand = makeRandom(opts.seed);
   const name = CRACK_TYPE_DEF.find((c) => c.key === opts.crackType)?.name ?? opts.crackType;
@@ -53,7 +60,9 @@ function crackSvg(opts: { caseNum: string; crackType: string; degree: string; de
   for (let i = 0; i < 150; i += 1) {
     const x = rand() * 640;
     const y = rand() * 360;
-    marks.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(rand() * 1.6 + 0.4).toFixed(1)}" fill="#000" opacity="${(rand() * 0.18).toFixed(2)}"/>`);
+    marks.push(
+      `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(rand() * 1.6 + 0.4).toFixed(1)}" fill="#000" opacity="${(rand() * 0.18).toFixed(2)}"/>`
+    );
   }
 
   const cx = 200 + rand() * 220;
@@ -80,14 +89,20 @@ function crackSvg(opts: { caseNum: string; crackType: string; degree: string; de
   if (style.shape === 'net') {
     for (let i = 0; i < 7; i += 1) {
       const x = cx - 90 + i * 30;
-      marks.push(`<path d="M ${x} ${cy - 60} l ${(rand() * 30 - 15).toFixed(1)} 120" stroke="${style.ink}" stroke-width="2.5" fill="none" opacity="0.85"/>`);
+      marks.push(
+        `<path d="M ${x} ${cy - 60} l ${(rand() * 30 - 15).toFixed(1)} 120" stroke="${style.ink}" stroke-width="2.5" fill="none" opacity="0.85"/>`
+      );
       const y = cy - 60 + i * 20;
-      marks.push(`<path d="M ${cx - 100} ${y} l 200 ${(rand() * 20 - 10).toFixed(1)}" stroke="${style.ink}" stroke-width="2.5" fill="none" opacity="0.85"/>`);
+      marks.push(
+        `<path d="M ${cx - 100} ${y} l 200 ${(rand() * 20 - 10).toFixed(1)}" stroke="${style.ink}" stroke-width="2.5" fill="none" opacity="0.85"/>`
+      );
     }
   }
 
   if (style.shape === 'rect') {
-    marks.push(`<rect x="${cx - 80}" y="${cy - 45}" width="160" height="90" rx="6" fill="${style.ink}" opacity="0.85"/>`);
+    marks.push(
+      `<rect x="${cx - 80}" y="${cy - 45}" width="160" height="90" rx="6" fill="${style.ink}" opacity="0.85"/>`
+    );
   }
 
   // 判讀圖多一個框選與信心度：那是 AI 產出的那一張，與原始照片要分得出來
@@ -142,7 +157,13 @@ function workSvg(caseNum: string, typeName: string, tone: string): string {
     if (!c.img && !c.imgDetect) continue;
 
     const detected = new Date(c.dtRecord).toISOString().slice(0, 16).replace('T', ' ');
-    const base = { caseNum: c.caseNum ?? c.externalId, crackType: c.crackType, degree: c.degree, detected, seed: c.id * 7919 };
+    const base = {
+      caseNum: c.caseNum ?? c.externalId,
+      crackType: c.crackType,
+      degree: c.degree,
+      detected,
+      seed: c.id * 7919
+    };
 
     if (c.img) {
       await storage.putObject(c.img, Buffer.from(crackSvg({ ...base, detect: false }), 'utf8'), 'image/svg+xml');

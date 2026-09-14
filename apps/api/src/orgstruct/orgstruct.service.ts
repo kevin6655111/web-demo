@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, In, Repository } from 'typeorm';
 import { HttpResponse, type HttpResult } from '@/http/http-response';
 import { ModuleNav } from './entities/module.entity';
 import { Feature } from './entities/feature.entity';
@@ -46,7 +46,9 @@ export class OrgstructService implements OnModuleInit {
         sortOrder: def.sortOrder
       };
 
-      const moduleId = existing ? (await this.moduleRepo.update(existing.id, payload), existing.id) : (await this.moduleRepo.save(this.moduleRepo.create(payload))).id;
+      const moduleId = existing
+        ? (await this.moduleRepo.update(existing.id, payload), existing.id)
+        : (await this.moduleRepo.save(this.moduleRepo.create(payload))).id;
 
       for (const fet of def.features) {
         const found = await this.featureRepo.findOne({ where: { key: fet.key } });
@@ -65,6 +67,20 @@ export class OrgstructService implements OnModuleInit {
         else await this.featureRepo.save(this.featureRepo.create(fetPayload));
       }
     }
+
+    // 定義裡沒有的就刪掉。
+    //
+    // 只做 upsert 的話，被移除的功能會永遠留在資料庫裡 —— 側邊欄上多一個
+    // 點進去沒有畫面的項目，而程式碼裡完全找不到它是哪來的。
+    // 先刪功能再刪模組：功能有外鍵指向模組。
+    const featureKeys = MODULE_DEF.flatMap((m) => m.features.map((f) => f.key));
+    const moduleKeys = MODULE_DEF.map((m) => m.key);
+
+    const staleFeatures = await this.featureRepo.delete({ key: Not(In(featureKeys)) });
+    const staleModules = await this.moduleRepo.delete({ key: Not(In(moduleKeys)) });
+
+    const removed = (staleFeatures.affected ?? 0) + (staleModules.affected ?? 0);
+    if (removed) this.logger.log(`🧹 清除已移除的導覽項目：功能 ${staleFeatures.affected} 個、模組 ${staleModules.affected} 個`);
 
     this.logger.log(`🧭 導覽同步完成：${MODULE_DEF.length} 個模組`);
   }

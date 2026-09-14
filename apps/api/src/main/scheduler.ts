@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { SchedulerModule } from '@/scheduler.module';
+import { SchedulerModule } from './scheduler.module';
 import { config } from '@/env.bootstrap';
 
 /**

@@ -1,4 +1,17 @@
-import { Box, Chip, LinearProgress, Paper, Stack, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, Typography } from '@mui/material';
+import {
+  Box,
+  Chip,
+  LinearProgress,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TablePagination,
+  TableRow,
+  Typography
+} from '@mui/material';
 
 /**
  * 共用資料表格。
@@ -29,7 +42,12 @@ export default function DataTable({
     if (col.render) return col.render(row[col.key], row);
 
     const v = row[col.key];
-    if (v === null || v === undefined || v === '') return <Typography variant="caption" color="text.secondary">—</Typography>;
+    if (v === null || v === undefined || v === '')
+      return (
+        <Typography variant="caption" color="text.secondary">
+          —
+        </Typography>
+      );
     if (col.type === 'number') return Number(v).toFixed(col.digits ?? 2);
 
     return v;
@@ -110,7 +128,9 @@ export default function DataTable({
 
 /** 狀態晶片：顏色由呼叫端給，讓同一份色票在地圖與表格通用 */
 export function StatusChip({ label, color }) {
-  return <Chip size="small" label={label} variant="outlined" sx={{ borderColor: color, color, height: 22, fontSize: 11 }} />;
+  return (
+    <Chip size="small" label={label} variant="outlined" sx={{ borderColor: color, color, height: 22, fontSize: 11 }} />
+  );
 }
 
 /** 進度條：用在完修率、覆蓋率這類「有目標值」的數字 */
@@ -118,9 +138,20 @@ export function ProgressBar({ value, color = 'var(--c-success)', width = 70 }) {
   return (
     <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
       <Box sx={{ width, height: 6, borderRadius: 3, bgcolor: 'action.selected', flexShrink: 0 }}>
-        <Box sx={{ width: `${Math.min(100, value)}%`, height: '100%', borderRadius: 3, background: color, transition: 'width .4s ease' }} />
+        <Box
+          sx={{
+            width: `${Math.min(100, value)}%`,
+            height: '100%',
+            borderRadius: 3,
+            background: color,
+            transition: 'width .4s ease'
+          }}
+        />
       </Box>
-      <Typography variant="caption" sx={{ fontFamily: '"JetBrains Mono", monospace', minWidth: 34, textAlign: 'right' }}>
+      <Typography
+        variant="caption"
+        sx={{ fontFamily: '"JetBrains Mono", monospace', minWidth: 34, textAlign: 'right' }}
+      >
         {value}%
       </Typography>
     </Stack>

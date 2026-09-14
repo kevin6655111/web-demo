@@ -55,7 +55,11 @@ export class CoreService {
     const fromStrings = Object.fromEntries(
       Object.entries(stringEnums).map(([table, values]) => [
         table,
-        (values as readonly string[]).map((value, order) => ({ VALUE: value, LABEL: SIMPLE_LABELS[table]?.[value] ?? value, ORDER: order }))
+        (values as readonly string[]).map((value, order) => ({
+          VALUE: value,
+          LABEL: SIMPLE_LABELS[table]?.[value] ?? value,
+          ORDER: order
+        }))
       ])
     );
 
@@ -63,14 +67,34 @@ export class CoreService {
     // 這些欄位前端都用得到，壓成 value/label 兩欄反而要再打一支 API 問
     const data = {
       ...fromStrings,
-      CRACK_TYPE: CRACK_TYPE_DEF.map((c, order) => ({ VALUE: c.key, LABEL: c.name, LABEL_TAIPEI: c.nameTaipei, ORDER: order })),
+      CRACK_TYPE: CRACK_TYPE_DEF.map((c, order) => ({
+        VALUE: c.key,
+        LABEL: c.name,
+        LABEL_TAIPEI: c.nameTaipei,
+        ORDER: order
+      })),
       DEGREE: DEGREE_DEF.map((d, order) => ({ VALUE: d.key, LABEL: d.name, ORDER: order })),
       CASE_STATUS: CASE_STATUS_DEF.map((s, order) => ({ VALUE: s.value, LABEL: s.name, COLOR: s.color, ORDER: order })),
       CASE_EDITED: CASE_EDITED_DEF.map((s, order) => ({ VALUE: s.value, LABEL: s.name, ORDER: order })),
       NEED_REPAIR: NEED_REPAIR_DEF.map((s, order) => ({ VALUE: s.value, LABEL: s.name, COLOR: s.color, ORDER: order })),
-      WORK_ORDER_TYPE: WORK_ORDER_TYPE_DEF.map((t, order) => ({ VALUE: t.key, LABEL: t.name, NEED_SOURCE: t.needSource, ORDER: order })),
-      WORK_ORDER_STATUS: WORK_ORDER_STATUS_DEF.map((s, order) => ({ VALUE: s.value, LABEL: s.name, COLOR: s.color, ORDER: order })),
-      SURVEY_STATUS: SURVEY_STATUS_DEF.map((s, order) => ({ VALUE: s.value, LABEL: s.name, COLOR: s.color, ORDER: order })),
+      WORK_ORDER_TYPE: WORK_ORDER_TYPE_DEF.map((t, order) => ({
+        VALUE: t.key,
+        LABEL: t.name,
+        NEED_SOURCE: t.needSource,
+        ORDER: order
+      })),
+      WORK_ORDER_STATUS: WORK_ORDER_STATUS_DEF.map((s, order) => ({
+        VALUE: s.value,
+        LABEL: s.name,
+        COLOR: s.color,
+        ORDER: order
+      })),
+      SURVEY_STATUS: SURVEY_STATUS_DEF.map((s, order) => ({
+        VALUE: s.value,
+        LABEL: s.name,
+        COLOR: s.color,
+        ORDER: order
+      })),
       MATERIAL: MATERIAL_DEF.map((m, order) => ({ VALUE: m.key, LABEL: m.name, ORDER: order })),
       TEST_ITEM: TEST_ITEM_DEF.map((t, order) => ({ VALUE: t, LABEL: t, ORDER: order })),
       PERIOD: PERIOD_DEF.map((p, order) => ({ VALUE: p.key, LABEL: p.name, ORDER: order })),

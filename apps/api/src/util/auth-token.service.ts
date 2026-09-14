@@ -31,10 +31,15 @@ export class AuthTokenService {
   /** 驗證 Token；失敗一律丟例外，由 AuthGuard 轉成 401 */
   public jwtVerify<T>(token: string): Promise<T> {
     return new Promise((resolve, reject) => {
-      jwt.verify(token, this.envService.getJwtSecret(), { algorithms: ['HS256'], issuer: ISSUER, audience: AUDIENCE }, (err, decoded) => {
-        if (err) return reject(err);
-        resolve(decoded as T);
-      });
+      jwt.verify(
+        token,
+        this.envService.getJwtSecret(),
+        { algorithms: ['HS256'], issuer: ISSUER, audience: AUDIENCE },
+        (err, decoded) => {
+          if (err) return reject(err);
+          resolve(decoded as T);
+        }
+      );
     });
   }
 }

@@ -40,7 +40,10 @@ export function UploadFields(fields: UploadFieldRule[], opts: UploadOptions = {}
 
   const ruleMap = new Map<string, { exts?: string[]; mimes?: string[] }>();
   for (const f of fields) {
-    ruleMap.set(f.name, { exts: f.allowedExts?.map(normalizeExt), mimes: f.allowedMimes?.map((m) => m.trim().toLowerCase()) });
+    ruleMap.set(f.name, {
+      exts: f.allowedExts?.map(normalizeExt),
+      mimes: f.allowedMimes?.map((m) => m.trim().toLowerCase())
+    });
   }
 
   const defaultExts = opts.allowedExts?.map(normalizeExt);

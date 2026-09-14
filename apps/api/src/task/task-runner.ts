@@ -69,7 +69,11 @@ export class TaskRunner {
    * @param jobFn  實際工作
    * @param opts.force 手動觸發：略過啟用檢查(但仍受鎖與逾時保護)
    */
-  public async run(key: TaskKey, jobFn: () => Promise<TaskOutcome>, opts: { force?: boolean } = {}): Promise<TaskOutcome> {
+  public async run(
+    key: TaskKey,
+    jobFn: () => Promise<TaskOutcome>,
+    opts: { force?: boolean } = {}
+  ): Promise<TaskOutcome> {
     const def = TASK_DEFS[key];
 
     if (!this.active && !opts.force) return { ok: false, skipped: '排程總開關關閉' };
@@ -96,13 +100,17 @@ export class TaskRunner {
     try {
       const result = await Promise.race([
         jobFn(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`Task timed out after ${timeoutMs}ms`)), timeoutMs))
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Task timed out after ${timeoutMs}ms`)), timeoutMs)
+        )
       ]);
 
       const ms = Date.now() - start;
       this.lastExecution.set(key, new Date());
       this.logger.log(`✅ done: ${def.label} (${ms}ms)`);
-      this.fileLogger.info(JSON.stringify({ task: key, label: def.label, ok: true, ms, detail: result.detail ?? null }));
+      this.fileLogger.info(
+        JSON.stringify({ task: key, label: def.label, ok: true, ms, detail: result.detail ?? null })
+      );
 
       return result;
     } catch (error: any) {

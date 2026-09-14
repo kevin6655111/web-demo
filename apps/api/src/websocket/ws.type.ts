@@ -1,5 +1,15 @@
 /** 前端可訂閱的廣播頻道 */
-export const WS_CHANNEL = ['case', 'maintenance', 'workorder', 'report', 'task', 'presence', 'fleet', 'lock', 'support'] as const;
+export const WS_CHANNEL = [
+  'case',
+  'maintenance',
+  'workorder',
+  'report',
+  'task',
+  'presence',
+  'fleet',
+  'lock',
+  'support'
+] as const;
 export type WsChannel = (typeof WS_CHANNEL)[number];
 
 /**

@@ -34,15 +34,48 @@ export default function QVehicleTrack() {
   const [cursor, setCursor] = useState(0);
   const timerRef = useRef(null);
 
+  /**
+   * 車輛清單依標案／工務段／轄區收斂。
+   *
+   * 這幾個條件的意義是「要看哪個範圍的車」，而不是篩軌跡點 ——
+   * 軌跡查詢本來就是單車輛的。過去它們被原樣送進軌跡端點，
+   * 使用者設了之後只會拿到 400。
+   */
+  const scope = useMemo(
+    () => ({
+      PRJ_ID: form.PRJ_ID,
+      SECTION_ID: form.SECTION_ID,
+      COUNTY: form.COUNTY,
+      DISTRICT: Array.isArray(form.DISTRICT) ? form.DISTRICT[0] : form.DISTRICT
+    }),
+    [form.PRJ_ID, form.SECTION_ID, form.COUNTY, form.DISTRICT]
+  );
+
   useEffect(() => {
+    const params = Object.fromEntries(
+      Object.entries(scope)
+        .filter(([, v]) => v !== '' && v !== undefined && !(Array.isArray(v) && !v.length))
+        .map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : v])
+    );
+
     fleetApi
-      .vehicles({})
+      .vehicles(params)
       .then((res) => {
-        setVehicles(res.data ?? []);
-        if (res.data?.length) setForm((f) => ({ ...f, VEHICLE_ID: String(res.data[0].ID) }));
+        const list = res.data ?? [];
+        setVehicles(list);
+
+        // 選中的車若不在收斂後的清單裡，改選第一台 —— 否則畫面顯示著
+        // 一台不屬於這個範圍的車，而查詢結果看起來像是壞掉
+        setForm((f) => {
+          const stillThere = list.some((v) => String(v.ID) === String(f.VEHICLE_ID));
+          if (stillThere) return f;
+          return { ...f, VEHICLE_ID: list.length ? String(list[0].ID) : '' };
+        });
       })
       .catch((err) => setError(err.message));
+  }, [scope]);
 
+  useEffect(() => {
     // 巡查計畫路線也登錄成圖層：要看「該巡的有沒有巡到」需要兩者疊看
     patrolPlanApi
       .layer({ ACTIVE: true })
@@ -248,8 +281,7 @@ export default function QVehicleTrack() {
 
         <Divider sx={{ my: 1.5 }} />
         <Typography variant="caption" color="text.secondary">
-          軌跡依速度上色：紅 &lt;10、黃 &lt;30、綠 ≥30 km/h。
-          在圖層控制打開「破壞案件」就能看出這趟巡查經過了哪些案件。
+          軌跡依速度上色：紅 &lt;10、黃 &lt;30、綠 ≥30 km/h。 在圖層控制打開「破壞案件」就能看出這趟巡查經過了哪些案件。
         </Typography>
       </Paper>
     </Stack>

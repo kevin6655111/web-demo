@@ -91,7 +91,7 @@ export default function QueryForm({ fields, value, onChange, onSearch, onReset, 
         placeholder={f.placeholder}
         value={value[f.key] ?? ''}
         onChange={(e) => set(f.key, e.target.value)}
-        InputLabelProps={f.type === 'date' ? { shrink: true } : undefined}
+        InputLabelProps={f.type === 'date' || f.type === 'month' ? { shrink: true } : undefined}
         sx={{ minWidth: f.width ?? 150 }}
       />
     );
@@ -121,7 +121,13 @@ export default function QueryForm({ fields, value, onChange, onSearch, onReset, 
       </Stack>
 
       <Collapse in={expanded}>
-        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ mt: 2, pt: 2, borderTop: (t) => `1px dashed ${t.palette.divider}` }}>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ mt: 2, pt: 2, borderTop: (t) => `1px dashed ${t.palette.divider}` }}
+        >
           {advanced.map(renderField)}
         </Stack>
       </Collapse>

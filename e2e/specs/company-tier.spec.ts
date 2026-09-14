@@ -130,7 +130,9 @@ test.describe('三層組織', () => {
     const subId = await companyId(request, token, 'SUB01');
 
     const before = await (await request.get(`${API}/company/${subId}/grant`, { headers })).json();
-    const subActive = before.data.GRANTS.filter((g: { IS_ACTIVE: boolean }) => g.IS_ACTIVE).map((g: { ACTION_KEY: string }) => g.ACTION_KEY);
+    const subActive = before.data.GRANTS.filter((g: { IS_ACTIVE: boolean }) => g.IS_ACTIVE).map(
+      (g: { ACTION_KEY: string }) => g.ACTION_KEY
+    );
     expect(subActive).toContain('WORK_ORDER.UPDATE');
 
     // 平台把 WORK_ORDER.UPDATE 從廠商手上收回
@@ -139,16 +141,23 @@ test.describe('三層組織', () => {
       .map((g: { ACTION_KEY: string }) => g.ACTION_KEY)
       .filter((a: string) => a !== 'WORK_ORDER.UPDATE');
 
-    const revoke = await (await request.put(`${API}/company/grant`, { headers, data: { COMPANY_ID: contractorId, ACTIONS: kept } })).json();
+    const revoke = await (
+      await request.put(`${API}/company/grant`, { headers, data: { COMPANY_ID: contractorId, ACTIONS: kept } })
+    ).json();
     expect(revoke.data.CASCADED_REVOKES).toBeGreaterThan(0);
 
     // 外包那份跟著失效：留著孤兒授權，等於下層還能做上層已經沒有的事
     const after = await (await request.get(`${API}/company/${subId}/grant`, { headers })).json();
-    const stillActive = after.data.GRANTS.filter((g: { IS_ACTIVE: boolean }) => g.IS_ACTIVE).map((g: { ACTION_KEY: string }) => g.ACTION_KEY);
+    const stillActive = after.data.GRANTS.filter((g: { IS_ACTIVE: boolean }) => g.IS_ACTIVE).map(
+      (g: { ACTION_KEY: string }) => g.ACTION_KEY
+    );
     expect(stillActive).not.toContain('WORK_ORDER.UPDATE');
 
     // 還原，避免影響其他測試
-    await request.put(`${API}/company/grant`, { headers, data: { COMPANY_ID: contractorId, ACTIONS: [...kept, 'WORK_ORDER.UPDATE'] } });
+    await request.put(`${API}/company/grant`, {
+      headers,
+      data: { COMPANY_ID: contractorId, ACTIONS: [...kept, 'WORK_ORDER.UPDATE'] }
+    });
     await request.put(`${API}/company/grant`, { headers, data: { COMPANY_ID: subId, ACTIONS: subActive } });
   });
 });

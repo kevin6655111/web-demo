@@ -49,20 +49,20 @@ modules ── features        (導覽定義，不掛公司)
 
 兩條規則撐起整個機制：
 
-| 規則 | 實作 | 少了會怎樣 |
-|---|---|---|
-| 只看得到自己的子樹 | 遞迴 CTE 收斂 `company_id`，範圍外一律回 404 | 廠商查得到平台與其他廠商 |
-| 開不出自己沒有的權限 | `setGrants` 先比對自己的 `company_grants` | 廠商自建全權限外包單位 |
+| 規則                 | 實作                                         | 少了會怎樣               |
+| -------------------- | -------------------------------------------- | ------------------------ |
+| 只看得到自己的子樹   | 遞迴 CTE 收斂 `company_id`，範圍外一律回 404 | 廠商查得到平台與其他廠商 |
+| 開不出自己沒有的權限 | `setGrants` 先比對自己的 `company_grants`    | 廠商自建全權限外包單位   |
 
-**廠商不知道平台存在**：範圍外回 404 而不是 403 ——
-「有這個公司但你不能碰」本身就洩漏了它的存在。
+**廠商無法得知平台層的存在**：範圍外一律回 404 而非 403。
+403 等同於確認「該公司存在但無權存取」，本身即為資訊洩漏。
 
 **使用者權限 = 角色動作 ∩ 公司開通**。這是開通機制唯一真正生效的地方：
 少了交集，廠商自己建一個全權限角色就繞過了一切。示範資料裡的
 `SUB01/suboffice` 角色是「系統管理員」，登入後只拿得到被開通的七項。
 
-**收回會往下遞迴**：上層收回的權限，下層已開出去的那份一起停用，
-否則會出現「上層沒有、下層卻還有」的孤兒授權。
+**收回權限會向下遞迴**：上層收回的權限，下層已開通的部分一併停用，
+否則將產生上層已無、下層仍存的孤兒授權。
 
 `company_grants` 一列一個動作鍵，記錄是誰、哪個單位開的，停用而不刪除 ——
 合約中止後要查得到「當初開通過什麼」。
@@ -73,11 +73,11 @@ modules ── features        (導覽定義，不掛公司)
 
 主表只放「來源寫進來就不再改」的內容，人會改的與非同步補的各自一張。
 
-| 表 | 誰在寫 | 頻率 |
-|---|---|---|
-| `patrol_cases` | 車機／APP | 每天幾千筆，寫完就不動 |
-| `patrol_case_addresses` | 逆地理編碼的 worker 或排程 | 案件建立後才補上 |
-| `patrol_case_statuses` | 承辦、主管 | 一筆案件被改很多次 |
+| 表                      | 誰在寫                     | 頻率                   |
+| ----------------------- | -------------------------- | ---------------------- |
+| `patrol_cases`          | 車機／APP                  | 每天幾千筆，寫完就不動 |
+| `patrol_case_addresses` | 逆地理編碼的 worker 或排程 | 案件建立後才補上       |
+| `patrol_case_statuses`  | 承辦、主管                 | 一筆案件被改很多次     |
 
 合成一張的代價很具體：車機的大量寫入會跟承辦的編輯搶同一列，
 而且地址還沒補到時，案件會因為欄位不完整而卡在寫入這一步 ——
@@ -119,29 +119,29 @@ modules ── features        (導覽定義，不掛公司)
 
 ## 主要資料表
 
-| 表 | 用途 | 關鍵約束 |
-|---|---|---|
-| `patrol_cases` | 破壞案件主表 | `(dt_record, img_detect, crack_id)` 唯一、`external_id` 唯一、`geom` GiST |
-| `patrol_case_addresses` | 案件地址（非同步補） | `case_id` 唯一；`(county, district)`、`road` 索引 |
-| `patrol_case_statuses` | 二篩／編輯／修繕三組狀態 | `case_id` 唯一；`status`、`need_repair` 各自索引 |
-| `maintenances` | 巡查單／巡修單主表 | `case_num` 唯一；`(project_id, pothole_number)` **部分**唯一（只管有編號的）、`geom` GiST |
-| `maintenance_statuses` | 巡查單狀態 | `maintenance_id` 唯一；`status` 索引 |
-| `maintenance_repairs` | 巡修回填內容（RB 才有） | `maintenance_id` 唯一；改回 RA 時整列刪除 |
-| `maintenance_images` | 巡查照片 | `(maintenance_id, img_type)` 唯一 |
-| `work_orders` | 派工單 | `case_num` 唯一、`case_patrol_id` 唯一、`maintenance_id` **部分**唯一（一來源一單）|
-| `work_order_users` | 派工單↔施工人員 | `(work_order_id, user_id)` 唯一；一張單可多人 |
-| `work_order_images` | 施工照片 | `(work_order_id, img_type)` 唯一 —— 同類型只留一張 |
-| `case_histories` | 版本化歷程 | 主鍵 `(case_type, case_id, version)`；只增不改 |
-| `projects` | 標案 | `prj_id` 唯一；`(state, start_date, end_date)` 索引 |
-| `company_projects` | 公司↔標案 | `(company_id, project_id)` 唯一 + `role` / `is_active` |
-| `project_vehicles` | 標案↔車輛 | `(project_id, vehicle_id)` 唯一 + `is_active` |
-| `project_sections` / `section_areas` | 工務段與轄區 | 各自的組合唯一 + `is_active` |
-| `vehicle_tracks` | 軌跡點 | 資料量最大；索引只建 `(vehicle_id, recorded_at)` 與空間索引 |
-| `road_segments` | 路段評估 | LineString；`(company_id, code)` 唯一 |
-| `report_jobs` | 報表工作 | `dedup_key` 唯一（同條件不重複排） |
-| `companies` | 三層組織 | `parent_id` 自關聯；`CHECK` 保證 tier 1 無上層、tier 2/3 必有上層 |
-| `company_grants` | 公司被開通的動作 | `(company_id, action_key)` 唯一；停用而不刪除 |
-| `modules` / `features` | 導覽定義 | 啟動時由程式碼同步 |
+| 表                                   | 用途                     | 關鍵約束                                                                                  |
+| ------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------- |
+| `patrol_cases`                       | 破壞案件主表             | `(dt_record, img_detect, crack_id)` 唯一、`external_id` 唯一、`geom` GiST                 |
+| `patrol_case_addresses`              | 案件地址（非同步補）     | `case_id` 唯一；`(county, district)`、`road` 索引                                         |
+| `patrol_case_statuses`               | 二篩／編輯／修繕三組狀態 | `case_id` 唯一；`status`、`need_repair` 各自索引                                          |
+| `maintenances`                       | 巡查單／巡修單主表       | `case_num` 唯一；`(project_id, pothole_number)` **部分**唯一（只管有編號的）、`geom` GiST |
+| `maintenance_statuses`               | 巡查單狀態               | `maintenance_id` 唯一；`status` 索引                                                      |
+| `maintenance_repairs`                | 巡修回填內容（RB 才有）  | `maintenance_id` 唯一；改回 RA 時整列刪除                                                 |
+| `maintenance_images`                 | 巡查照片                 | `(maintenance_id, img_type)` 唯一                                                         |
+| `work_orders`                        | 派工單                   | `case_num` 唯一、`case_patrol_id` 唯一、`maintenance_id` **部分**唯一（一來源一單）       |
+| `work_order_users`                   | 派工單↔施工人員          | `(work_order_id, user_id)` 唯一；一張單可多人                                             |
+| `work_order_images`                  | 施工照片                 | `(work_order_id, img_type)` 唯一 —— 同類型只留一張                                        |
+| `case_histories`                     | 版本化歷程               | 主鍵 `(case_type, case_id, version)`；只增不改                                            |
+| `projects`                           | 標案                     | `prj_id` 唯一；`(state, start_date, end_date)` 索引                                       |
+| `company_projects`                   | 公司↔標案                | `(company_id, project_id)` 唯一 + `role` / `is_active`                                    |
+| `project_vehicles`                   | 標案↔車輛                | `(project_id, vehicle_id)` 唯一 + `is_active`                                             |
+| `project_sections` / `section_areas` | 工務段與轄區             | 各自的組合唯一 + `is_active`                                                              |
+| `vehicle_tracks`                     | 軌跡點                   | 資料量最大；索引只建 `(vehicle_id, recorded_at)` 與空間索引                               |
+| `road_segments`                      | 路段評估                 | LineString；`(company_id, code)` 唯一                                                     |
+| `report_jobs`                        | 報表工作                 | `dedup_key` 唯一（同條件不重複排）                                                        |
+| `companies`                          | 三層組織                 | `parent_id` 自關聯；`CHECK` 保證 tier 1 無上層、tier 2/3 必有上層                         |
+| `company_grants`                     | 公司被開通的動作         | `(company_id, action_key)` 唯一；停用而不刪除                                             |
+| `modules` / `features`               | 導覽定義                 | 啟動時由程式碼同步                                                                        |
 
 ### 案件的三層去重
 
@@ -164,10 +164,10 @@ HTTP  Idempotency-Key + Redis SET NX     擋掉「同一次請求」的重送
 
 ## 單據狀態
 
-| 單據 | 狀態 |
-|---|---|
-| 巡查單 `maintenance_statuses.status` | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工 |
-| 派工單 `work_order_statuses.status` | -1 已刪除 / 0 待處理 / 1 施工中 / 2 已回報 / 3 已完工 |
+| 單據                                 | 狀態                                                  |
+| ------------------------------------ | ----------------------------------------------------- |
+| 巡查單 `maintenance_statuses.status` | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工            |
+| 派工單 `work_order_statuses.status`  | -1 已刪除 / 0 待處理 / 1 施工中 / 2 已回報 / 3 已完工 |
 
 **刪除是狀態而不是真的刪列**：巡查單可能已經被派工單引用，真刪會讓派工單變成孤兒；
 而「刪掉的單救得回來」本身就是需求 —— 現場誤刪是常態。
@@ -180,11 +180,11 @@ HTTP  Idempotency-Key + Redis SET NX     擋掉「同一次請求」的重送
 案件有三組彼此獨立的狀態，各自帶異動者與時間。合成一個欄位的話，
 「AI 判錯」與「不需要修」會變成同一件事，而模型調校時要分得出來。
 
-| 欄位 | 值 | 問的問題 |
-|---|---|---|
-| `status` | 0 未審 / 1 通過 / 2 待審 / 3 刪除 / 4 誤判 | 這筆 AI 判讀對不對？ |
-| `edited` | 0 未編輯 / 1 已編輯 | 有沒有被人改過？（稽核用） |
-| `need_repair` | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工 | 這個案件走到哪一步？ |
+| 欄位          | 值                                         | 問的問題                   |
+| ------------- | ------------------------------------------ | -------------------------- |
+| `status`      | 0 未審 / 1 通過 / 2 待審 / 3 刪除 / 4 誤判 | 這筆 AI 判讀對不對？       |
+| `edited`      | 0 未編輯 / 1 已編輯                        | 有沒有被人改過？（稽核用） |
+| `need_repair` | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工 | 這個案件走到哪一步？       |
 
 `need_repair` **沒有「已完修」**：修完了是派工單的事實（`status = 3`），不是案件的狀態。
 硬塞一個值進去，同一個欄位就會表達兩件事，而報表要分開統計 ——
@@ -197,15 +197,15 @@ HTTP  Idempotency-Key + Redis SET NX     擋掉「同一次請求」的重送
 
 一律用 `geography(*, 4326)` 而非 `geometry`：距離單位就是公尺，不必自己換算投影。
 
-| 表 | 型別 | 為什麼 |
-|---|---|---|
-| `patrol_cases.geom` | Point | 案件是點 |
-| `maintenances.geom` | Point | 巡查記的是一個破壞點 |
-| `work_orders.start_geom` / `end_geom` | Point | 施工有起訖點 |
-| `vehicle_tracks.geom` | Point | 軌跡是一連串點 |
-| `road_segments.geom` | LineString | 決策的單位是一段路 |
-| `patrol_plans.route` | LineString | 應巡路線 |
-| `survey_cases.geom` | Point | 調查是一個量測點 |
+| 表                                    | 型別       | 為什麼               |
+| ------------------------------------- | ---------- | -------------------- |
+| `patrol_cases.geom`                   | Point      | 案件是點             |
+| `maintenances.geom`                   | Point      | 巡查記的是一個破壞點 |
+| `work_orders.start_geom` / `end_geom` | Point      | 施工有起訖點         |
+| `vehicle_tracks.geom`                 | Point      | 軌跡是一連串點       |
+| `road_segments.geom`                  | LineString | 決策的單位是一段路   |
+| `patrol_plans.route`                  | LineString | 應巡路線             |
+| `survey_cases.geom`                   | Point      | 調查是一個量測點     |
 
 常用空間查詢：
 
@@ -221,23 +221,23 @@ ST_AsMVTGeom(ST_Transform(c.geom::geometry, 3857), bounds.geom, 4096, 64, true)
 ```
 
 `ST_AsMVTGeom` 要求幾何與範圍同座標系。不轉不會報錯，
-只會安靜地回傳空圖磚 —— 最難查的那種問題。
+而是回傳空圖磚，屬於不產生錯誤訊息、因此最難定位的一類問題。
 
 ## 版本化歷程的欄位
 
-| 欄位 | 內容 |
-|---|---|
-| `case_type` | CASE_PATROL / WORK_ORDER / PROJECT / SURVEY |
-| `case_id` | 該實體的 id |
-| `version` | 同一實體內從 1 遞增，在交易裡計算 |
-| `action` | CREATED / UPDATED / GEOCODED / STATUS_CHANGED / DISPATCHED / WORKING / REPORTED / FINISHED / ACCEPTED / RETURNED / IMAGE_UPLOADED / IMAGE_DELETED / RESTORED / DELETED |
-| `snapshot_json` | 該版本的**完整**樣貌（jsonb） |
-| `changes_json` | 這次動到的欄位 `{ 欄位: { from, to } }` |
-| `from_state` / `to_state` | 狀態流轉 |
-| `source` | USER / TASK / WORKER / DEVICE |
-| `note` | 說明（退回原因、還原自哪一版…） |
-| `client_ip` | 來源 IP —— 稽核要能回答「是不是從辦公室改的」 |
-| `modified_by` / `modified_at` | 誰、什麼時候 |
+| 欄位                          | 內容                                                                                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `case_type`                   | CASE_PATROL / WORK_ORDER / PROJECT / SURVEY                                                                                                                            |
+| `case_id`                     | 該實體的 id                                                                                                                                                            |
+| `version`                     | 同一實體內從 1 遞增，在交易裡計算                                                                                                                                      |
+| `action`                      | CREATED / UPDATED / GEOCODED / STATUS_CHANGED / DISPATCHED / WORKING / REPORTED / FINISHED / ACCEPTED / RETURNED / IMAGE_UPLOADED / IMAGE_DELETED / RESTORED / DELETED |
+| `snapshot_json`               | 該版本的**完整**樣貌（jsonb）                                                                                                                                          |
+| `changes_json`                | 這次動到的欄位 `{ 欄位: { from, to } }`                                                                                                                                |
+| `from_state` / `to_state`     | 狀態流轉                                                                                                                                                               |
+| `source`                      | USER / TASK / WORKER / DEVICE                                                                                                                                          |
+| `note`                        | 說明（退回原因、還原自哪一版…）                                                                                                                                        |
+| `client_ip`                   | 來源 IP —— 稽核要能回答「是不是從辦公室改的」                                                                                                                          |
+| `modified_by` / `modified_at` | 誰、什麼時候                                                                                                                                                           |
 
 版本號是主鍵的一部分：兩個同時發生的變更不可能拿到同一個版本，
 撞號會直接失敗，而不是靜靜覆蓋掉別人的那一版。
@@ -282,19 +282,19 @@ ST_AsMVTGeom(ST_Transform(c.geom::geometry, 3857), bounds.geom, 4096, 64, true)
 ```
 
 案件與派工單的狀態一起改，包在同一個交易裡 ——
-只改一邊的話，現場看到的狀態會和辦公室不一樣，而這種不一致沒有人會主動發現。
+僅修改單側時，現場與辦公室看到的狀態將不一致，且此類不一致不會主動顯現。
 
 **完工前會檢查必要照片齊不齊**（依派工單類型）。
 缺照片的完工單在驗收時會被退回，與其讓它一路走到驗收才發現，不如在標記完工時就擋住。
 
 ## 派工單類型與必要照片
 
-| 類型 | 意義 | 必須帶來源案件 | 必要照片 |
-|---|---|---|---|
-| `PA` | 刨除加封 | 否 | 施工前、刨除後、面層鋪築、施工後 |
-| `PB` | 路基改善 | 否（但必填取樣資訊） | 施工前、路基整治、夯實試驗、施工後 |
-| `PC` | AI 車巡案件 | **是** | 施工前、施工後 |
-| `PD` | APP 巡查案件 | **是** | 施工前、施工後 |
+| 類型 | 意義         | 必須帶來源案件       | 必要照片                           |
+| ---- | ------------ | -------------------- | ---------------------------------- |
+| `PA` | 刨除加封     | 否                   | 施工前、刨除後、面層鋪築、施工後   |
+| `PB` | 路基改善     | 否（但必填取樣資訊） | 施工前、路基整治、夯實試驗、施工後 |
+| `PC` | AI 車巡案件  | **是**               | 施工前、施工後                     |
+| `PD` | APP 巡查案件 | **是**               | 施工前、施工後                     |
 
 `PC` / `PD` 沒帶來源案件會出現「修了但不知道在修什麼」的單，所以在 DTO 層就擋下。
 

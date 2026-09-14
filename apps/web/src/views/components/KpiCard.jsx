@@ -77,7 +77,9 @@ export default function KpiCard({ label, value, unit, tone = 'info', hint }) {
       </Stack>
 
       <Stack direction="row" alignItems="baseline" spacing={0.75}>
-        <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 34, fontWeight: 700, color, lineHeight: 1 }}>
+        <Typography
+          sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 34, fontWeight: 700, color, lineHeight: 1 }}
+        >
           {display}
         </Typography>
         <Typography variant="body2" color="text.secondary">

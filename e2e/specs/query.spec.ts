@@ -50,7 +50,9 @@ test.describe('案件查詢條件', () => {
 
     const a = await (await request.get(`${API}/patrol/case?SIZE=1&CRACK_TYPE=Potholes`, { headers })).json();
     const b = await (await request.get(`${API}/patrol/case?SIZE=1&CRACK_TYPE=Cracking`, { headers })).json();
-    const both = await (await request.get(`${API}/patrol/case?SIZE=1&CRACK_TYPE=Potholes,Cracking`, { headers })).json();
+    const both = await (
+      await request.get(`${API}/patrol/case?SIZE=1&CRACK_TYPE=Potholes,Cracking`, { headers })
+    ).json();
 
     expect(both.data.TOTAL).toBe(a.data.TOTAL + b.data.TOTAL);
   });

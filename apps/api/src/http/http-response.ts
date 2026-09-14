@@ -27,10 +27,19 @@ export const HttpResponse = {
   },
 
   /** 查得到就 success、查不到就 warn，省掉呼叫端到處寫「查無資料」 */
-  successOrWarn<T = any>({ data, okMsg = '', warnMsg = '查無資料', code = 200, errors, isEmpty }: SuccessOrWarnArgs<T>): HttpResult<T> {
+  successOrWarn<T = any>({
+    data,
+    okMsg = '',
+    warnMsg = '查無資料',
+    code = 200,
+    errors,
+    isEmpty
+  }: SuccessOrWarnArgs<T>): HttpResult<T> {
     const empty = isEmpty ? isEmpty(data) : isEmptyData(data);
 
-    return empty ? HttpResponse.warn({ data, message: warnMsg, code, errors }) : HttpResponse.success({ data, message: okMsg, code, errors });
+    return empty
+      ? HttpResponse.warn({ data, message: warnMsg, code, errors })
+      : HttpResponse.success({ data, message: okMsg, code, errors });
   }
 };
 

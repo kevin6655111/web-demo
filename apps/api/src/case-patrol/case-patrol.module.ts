@@ -13,7 +13,13 @@ import { CasePatrolController } from './case-patrol.controller';
 import { CasePatrolService } from './case-patrol.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PatrolCase, PatrolCaseAddress, PatrolCaseStatus, Project, ProjectVehicle]), GeoModule, QueueModule, CaseHistoryModule, StorageModule],
+  imports: [
+    TypeOrmModule.forFeature([PatrolCase, PatrolCaseAddress, PatrolCaseStatus, Project, ProjectVehicle]),
+    GeoModule,
+    QueueModule,
+    CaseHistoryModule,
+    StorageModule
+  ],
   controllers: [CasePatrolController],
   providers: [CasePatrolService],
   exports: [CasePatrolService]

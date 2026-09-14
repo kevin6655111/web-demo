@@ -31,7 +31,17 @@ describe('LiveFeed', () => {
 
   it('尚未定位的案件顯示「定位中」而不是空白路名', () => {
     renderFeed({
-      rows: [{ ID: 1, CASE_NUM: 'DEMO01000001', CRACK_TYPE: 'Potholes', STATUS: 0, NEED_REPAIR: 0, ROAD_NAME: null, DT_RECORD: '2026-08-28T10:00:00Z' }]
+      rows: [
+        {
+          ID: 1,
+          CASE_NUM: 'DEMO01000001',
+          CRACK_TYPE: 'Potholes',
+          STATUS: 0,
+          NEED_REPAIR: 0,
+          ROAD_NAME: null,
+          DT_RECORD: '2026-08-28T10:00:00Z'
+        }
+      ]
     });
 
     expect(screen.getByText(/坑洞 · 定位中…/)).toBeInTheDocument();

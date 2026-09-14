@@ -16,6 +16,10 @@ import { CaseHistoryModule } from './case-history/case-history.module';
 import { ProjectModule } from './project/project.module';
 import { WorkOrderModule } from './work-order/work-order.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { CaseEncodeModule } from './case-encode/case-encode.module';
+import { LocationModule } from './location/location.module';
+import { MailModule } from './mail/mail.module';
+import { FireBaseModule } from './fire-base/fire-base.module';
 import { ReportModule } from './report/report.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { WebsocketModule } from './websocket/websocket.module';
@@ -24,8 +28,10 @@ import { OrgstructModule } from './orgstruct/orgstruct.module';
 import { FleetModule } from './fleet/fleet.module';
 import { RoadEvalModule } from './road-eval/road-eval.module';
 import { PatrolSettingModule } from './patrol-setting/patrol-setting.module';
+import { RoadSettingModule } from './road-setting/road-setting.module';
 import { SurveyModule } from './survey/survey.module';
 import { SupportModule } from './support/support.module';
+import { SiftModule } from './sift/sift.module';
 import { CoreModule } from './core/core.module';
 
 /**
@@ -55,6 +61,10 @@ import { CoreModule } from './core/core.module';
     ProjectModule,
     WorkOrderModule,
     MaintenanceModule,
+    CaseEncodeModule,
+    LocationModule,
+    MailModule,
+    FireBaseModule,
     ReportModule,
     DashboardModule,
     WebsocketModule,
@@ -63,8 +73,10 @@ import { CoreModule } from './core/core.module';
     FleetModule,
     RoadEvalModule,
     PatrolSettingModule,
+    RoadSettingModule,
     SurveyModule,
     SupportModule,
+    SiftModule,
     CoreModule
   ]
 })

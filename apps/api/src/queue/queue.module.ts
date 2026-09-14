@@ -27,6 +27,17 @@ import { CaseEventPublisher } from './case-event.publisher';
         }
       },
       {
+        name: QUEUE.MAIL,
+        defaultJobOptions: {
+          // 郵件重試次數多且間隔長：SMTP 故障通常是暫時的，
+          // 而使用者對「晚幾分鐘收到」的容忍度遠高於「沒收到」
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 30_000 },
+          removeOnComplete: 500,
+          removeOnFail: 1000
+        }
+      },
+      {
         name: QUEUE.REPORT,
         defaultJobOptions: {
           // 報表重試次數少：失敗通常是查詢條件的問題，重試五次只是白等

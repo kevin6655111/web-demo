@@ -48,7 +48,14 @@ function mimeOf(name) {
   const ext = name.split('.').pop().toLowerCase();
 
   return (
-    { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' }[ext] ??
-    'application/octet-stream'
+    {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      bmp: 'image/bmp',
+      svg: 'image/svg+xml'
+    }[ext] ?? 'application/octet-stream'
   );
 }

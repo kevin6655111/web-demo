@@ -14,7 +14,6 @@ export function useRealtime({ channels = ['case'], onMessage, enabled = true }) 
   const socketRef = useRef(null);
   const retryRef = useRef(0);
   const handlerRef = useRef(onMessage);
-  const closedRef = useRef(false);
 
   // 用 ref 保存最新的 handler：避免 handler 每次 render 變動就重連
   handlerRef.current = onMessage;
@@ -26,25 +25,32 @@ export function useRealtime({ channels = ['case'], onMessage, enabled = true }) 
   useEffect(() => {
     if (!enabled) return undefined;
 
-    closedRef.current = false;
+    // 這一輪 effect 專屬的狀態。刻意不用 ref ——
+    // close 事件是非同步送達的，等它抵達時 ref 早就被下一輪 effect 重設，
+    // 已經卸載的那條連線會誤判自己還活著而重連，且沒有人再關得掉它
+    let disposed = false;
+    let socket = null;
     let pingTimer;
     let retryTimer;
 
     const connect = () => {
-      if (closedRef.current) return;
+      if (disposed) return;
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const socket = new WebSocket(`${proto}://${window.location.host}/ws`);
-      socketRef.current = socket;
+      socket = new WebSocket(`${proto}://${window.location.host}/ws`);
+      const current = socket;
+      socketRef.current = current;
 
-      socket.onopen = () => {
+      current.onopen = () => {
+        if (disposed) return current.close();
+
         setConnected(true);
         retryRef.current = 0;
-        socket.send(JSON.stringify({ type: 'subscribe', channels }));
-        pingTimer = setInterval(() => socket.send(JSON.stringify({ type: 'ping' })), 20000);
+        current.send(JSON.stringify({ type: 'subscribe', channels }));
+        pingTimer = setInterval(() => current.send(JSON.stringify({ type: 'ping' })), 20000);
       };
 
-      socket.onmessage = (event) => {
+      current.onmessage = (event) => {
         try {
           handlerRef.current?.(JSON.parse(event.data));
         } catch {
@@ -52,10 +58,11 @@ export function useRealtime({ channels = ['case'], onMessage, enabled = true }) 
         }
       };
 
-      socket.onclose = (event) => {
-        setConnected(false);
+      current.onclose = (event) => {
         clearInterval(pingTimer);
-        if (closedRef.current) return;
+        if (disposed) return;
+
+        setConnected(false);
 
         // 4001/4003 是伺服器明確拒絕(沒帶 token / token 無效)：
         // 重連再多次也不會成功，直接走憑證失效流程
@@ -71,16 +78,19 @@ export function useRealtime({ channels = ['case'], onMessage, enabled = true }) 
         retryTimer = setTimeout(connect, delay);
       };
 
-      socket.onerror = () => socket.close();
+      current.onerror = () => current.close();
     };
 
     connect();
 
     return () => {
-      closedRef.current = true;
+      disposed = true;
       clearInterval(pingTimer);
       clearTimeout(retryTimer);
-      socketRef.current?.close();
+      // 關掉這一輪自己建的那條，而不是 socketRef.current ——
+      // 後者可能已經指向下一輪建立的連線
+      socket?.close();
+      if (socketRef.current === socket) socketRef.current = null;
     };
   }, [enabled, channels.join(',')]);
 

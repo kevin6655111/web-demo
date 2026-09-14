@@ -73,7 +73,9 @@ test.describe('即時推播', () => {
     expect(second.data.ID).toBe(first.data.ID);
 
     const list = await (
-      await request.get(`${API}/patrol/case?EXTERNAL_ID=${externalId}`, { headers: { Authorization: `Bearer ${token}` } })
+      await request.get(`${API}/patrol/case?EXTERNAL_ID=${externalId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
     ).json();
     expect(list.data.TOTAL).toBe(1);
   });

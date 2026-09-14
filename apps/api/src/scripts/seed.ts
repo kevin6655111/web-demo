@@ -1,5 +1,6 @@
 import '@/env.bootstrap';
 import 'reflect-metadata';
+import { createHash } from 'crypto';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -10,6 +11,8 @@ import { Company } from '@entities/company.entity';
 import { CompanyGrant } from '@/auth/entities/company-grant.entity';
 import { Role } from '@entities/role.entity';
 import { User } from '@entities/user.entity';
+import { Department } from '@/auth/entities/department.entity';
+import { ApiKey } from '@/auth/entities/api-key.entity';
 import { PatrolCase } from '@entities/patrol-case.entity';
 import { PatrolCaseAddress } from '@/case-patrol/entities/patrol-case-address.entity';
 import { PatrolCaseStatus } from '@/case-patrol/entities/patrol-case-status.entity';
@@ -25,6 +28,8 @@ import { WorkOrderStatus } from '@/work-order/entities/work-order-status.entity'
 import { WorkOrderImage } from '@/work-order/entities/work-order-image.entity';
 import { WorkOrderImprovement } from '@/work-order/entities/work-order-improvement.entity';
 import { WorkOrderUser } from '@/work-order/entities/work-order-user.entity';
+import { AddressPoint } from '@/location/entities/address-point.entity';
+import { AddressGrid } from '@/location/entities/address-grid.entity';
 import { Maintenance } from '@/maintenance/entities/maintenance.entity';
 import { MaintenanceStatus } from '@/maintenance/entities/maintenance-status.entity';
 import { MaintenanceRepair } from '@/maintenance/entities/maintenance-repair.entity';
@@ -43,9 +48,14 @@ import { Vehicle, VEHICLE_TYPE } from '@/fleet/entities/vehicle.entity';
 import { VehicleTrack } from '@/fleet/entities/vehicle-track.entity';
 import { RoadSegment } from '@/road-eval/entities/road-segment.entity';
 import { PatrolPlan } from '@/patrol-setting/entities/patrol-plan.entity';
+import { RoadLine } from '@/road-setting/entities/road-line.entity';
+import { RoadBlock } from '@/road-setting/entities/road-block.entity';
+import { PatrolPoint } from '@/road-setting/entities/patrol-point.entity';
 import { SurveyOrder } from '@/survey/entities/survey-order.entity';
 import { SurveyCase } from '@/survey/entities/survey-case.entity';
+import { SurveyOrderDetail } from '@/survey/entities/survey-order-detail.entity';
 import { OrgstructService } from '@/orgstruct/orgstruct.service';
+import { CaseEncodeService } from '@/case-encode/case-encode.service';
 import { pciToLevel } from '@/road-eval/road-eval.service';
 import { ACTION, ACTION_KEYS, ROLE_PRESET } from '@constants/module.const';
 
@@ -89,6 +99,8 @@ function makeRandom(seed: number): () => number {
   const grantRepo = app.get<Repository<CompanyGrant>>(getRepositoryToken(CompanyGrant));
   const roleRepo = app.get<Repository<Role>>(getRepositoryToken(Role));
   const userRepo = app.get<Repository<User>>(getRepositoryToken(User));
+  const departmentRepo = app.get<Repository<Department>>(getRepositoryToken(Department));
+  const apiKeyRepo = app.get<Repository<ApiKey>>(getRepositoryToken(ApiKey));
   const caseRepo = app.get<Repository<PatrolCase>>(getRepositoryToken(PatrolCase));
   const addressRepo = app.get<Repository<PatrolCaseAddress>>(getRepositoryToken(PatrolCaseAddress));
   const caseStatusRepo = app.get<Repository<PatrolCaseStatus>>(getRepositoryToken(PatrolCaseStatus));
@@ -104,6 +116,8 @@ function makeRandom(seed: number): () => number {
   const orderImageRepo = app.get<Repository<WorkOrderImage>>(getRepositoryToken(WorkOrderImage));
   const improvementRepo = app.get<Repository<WorkOrderImprovement>>(getRepositoryToken(WorkOrderImprovement));
   const orderUserRepo = app.get<Repository<WorkOrderUser>>(getRepositoryToken(WorkOrderUser));
+  const addressPointRepo = app.get<Repository<AddressPoint>>(getRepositoryToken(AddressPoint));
+  const addressGridRepo = app.get<Repository<AddressGrid>>(getRepositoryToken(AddressGrid));
   const maintenanceRepo = app.get<Repository<Maintenance>>(getRepositoryToken(Maintenance));
   const maintenanceStatusRepo = app.get<Repository<MaintenanceStatus>>(getRepositoryToken(MaintenanceStatus));
   const maintenanceRepairRepo = app.get<Repository<MaintenanceRepair>>(getRepositoryToken(MaintenanceRepair));
@@ -113,11 +127,16 @@ function makeRandom(seed: number): () => number {
   const trackRepo = app.get<Repository<VehicleTrack>>(getRepositoryToken(VehicleTrack));
   const segmentRepo = app.get<Repository<RoadSegment>>(getRepositoryToken(RoadSegment));
   const planRepo = app.get<Repository<PatrolPlan>>(getRepositoryToken(PatrolPlan));
+  const roadLineRepo = app.get<Repository<RoadLine>>(getRepositoryToken(RoadLine));
+  const roadBlockRepo = app.get<Repository<RoadBlock>>(getRepositoryToken(RoadBlock));
+  const patrolPointRepo = app.get<Repository<PatrolPoint>>(getRepositoryToken(PatrolPoint));
   const surveyOrderRepo = app.get<Repository<SurveyOrder>>(getRepositoryToken(SurveyOrder));
   const surveyCaseRepo = app.get<Repository<SurveyCase>>(getRepositoryToken(SurveyCase));
+  const surveyDetailRepo = app.get<Repository<SurveyOrderDetail>>(getRepositoryToken(SurveyOrderDetail));
 
   // 導覽定義同步進資料庫；側邊欄從這裡長出來
   await app.get(OrgstructService).sync();
+  const caseEncodeService = app.get(CaseEncodeService);
 
   const random = makeRandom(20260828);
   const now = Date.now();
@@ -210,10 +229,16 @@ function makeRandom(seed: number): () => number {
     for (const actionKey of actions) {
       const existing = await grantRepo.findOne({ where: { company: { id: target.id }, actionKey } });
 
-      if (existing) await grantRepo.update(existing.id, { isActive: true, grantedByCompany: { id: grantedBy.id } as never });
+      if (existing)
+        await grantRepo.update(existing.id, { isActive: true, grantedByCompany: { id: grantedBy.id } as never });
       else
         await grantRepo.save(
-          grantRepo.create({ company: { id: target.id }, actionKey, isActive: true, grantedByCompany: { id: grantedBy.id } as never })
+          grantRepo.create({
+            company: { id: target.id },
+            actionKey,
+            isActive: true,
+            grantedByCompany: { id: grantedBy.id } as never
+          })
         );
     }
 
@@ -240,40 +265,201 @@ function makeRandom(seed: number): () => number {
 
   const roles = Object.fromEntries((await roleRepo.find()).map((r) => [r.key, r]));
 
+  // ─── 部門 ───────────────────────────────────────────────────────
+  //
+  // 派工要按工務段分派、報表要按部門統計 —— 沒有這一層，
+  // 「第一工務段這個月巡了多少」這種問題只能靠人名清單去湊。
+
+  const departmentDefs = [
+    { key: 'ENG', name: '工務部', parent: null as string | null },
+    { key: 'S1', name: '第一工務段', parent: 'ENG' },
+    { key: 'S2', name: '第二工務段', parent: 'ENG' },
+    { key: 'SIFT', name: '判讀中心', parent: null },
+    { key: 'ADM', name: '行政部', parent: null }
+  ];
+
+  const departments: Record<string, Department> = {};
+  for (const d of departmentDefs) {
+    const existing = await departmentRepo.findOne({ where: { key: d.key, company: { id: company.id } } });
+    const parent = d.parent ? departments[d.parent] : null;
+
+    if (existing) {
+      await departmentRepo.update(existing.id, { name: d.name, parent: parent ?? null, isActive: true });
+      departments[d.key] = await departmentRepo.findOneByOrFail({ id: existing.id });
+      continue;
+    }
+
+    departments[d.key] = await departmentRepo.save(
+      departmentRepo.create({ company, key: d.key, name: d.name, parent, isActive: true })
+    );
+  }
+
   // ─── 帳號(密碼一律 Demo1234，僅示範用) ──────────────────────────
 
-  const accounts = [
+  type AccountDef = {
+    account: string;
+    name: string;
+    role: string;
+    company: Company;
+    dept?: string;
+    title?: string;
+    english?: string;
+    manager?: string;
+    home?: string;
+  };
+
+  const accounts: AccountDef[] = [
     // 平台層：只做開通，不碰案件
-    { account: 'root', name: '平台管理員', role: 'ADMIN', company: platform },
+    { account: 'root', name: '平台管理員', role: 'ADMIN', company: platform, title: '平台維運', home: 'DASHBOARD' },
     // 廠商層：示範資料的主要歸屬
-    { account: 'admin', name: '示範管理員', role: 'ADMIN', company },
-    { account: 'inspector', name: '示範巡查員', role: 'INSPECTOR', company },
-    { account: 'worker1', name: '林師傅', role: 'WORKER', company },
-    { account: 'worker2', name: '陳師傅', role: 'WORKER', company },
-    { account: 'viewer', name: '示範檢視者', role: 'VIEWER', company },
+    {
+      account: 'admin',
+      name: '示範管理員',
+      role: 'ADMIN',
+      company,
+      dept: 'ADM',
+      title: '專案經理',
+      english: 'Alex Chen',
+      home: 'DASHBOARD'
+    },
+    {
+      account: 'inspector',
+      name: '示範巡查員',
+      role: 'INSPECTOR',
+      company,
+      dept: 'S1',
+      title: '巡查員',
+      english: 'Ming Wang',
+      manager: 'admin',
+      home: 'MAP_MOD'
+    },
+    {
+      account: 'sifter',
+      name: '示範判讀員',
+      role: 'INSPECTOR',
+      company,
+      dept: 'SIFT',
+      title: '判讀人員',
+      manager: 'admin',
+      home: 'SIFT_MOD'
+    },
+    { account: 'worker1', name: '林師傅', role: 'WORKER', company, dept: 'S1', title: '施工班長', manager: 'inspector' },
+    { account: 'worker2', name: '陳師傅', role: 'WORKER', company, dept: 'S2', title: '施工人員', manager: 'inspector' },
+    { account: 'viewer', name: '示範檢視者', role: 'VIEWER', company, dept: 'ADM', title: '業主代表' },
     // 外包層：角色是「管理員」(全權限)，但公司只被開通七項 ——
     // 登入後拿到的是交集，示範「角色設計不出上層沒開通的功能」
-    { account: 'suboffice', name: '外包負責人', role: 'ADMIN', company: subCompany },
-    { account: 'subworker', name: '黃師傅', role: 'WORKER', company: subCompany }
+    { account: 'suboffice', name: '外包負責人', role: 'ADMIN', company: subCompany, title: '負責人' },
+    { account: 'subworker', name: '黃師傅', role: 'WORKER', company: subCompany, title: '施工人員', manager: 'suboffice' }
   ];
+
+  /**
+   * 員工編號跟正式流程共用同一個計數器。
+   *
+   * seed 自己編號(從 0001 開始)看起來乾淨，但只要環境裡已經有人用系統建過帳號，
+   * 下一次 seed 就會撞上唯一索引而整支腳本失敗 —— 而錯誤訊息只會說
+   * 「duplicate key」，看不出是 seed 與應用程式各自發號造成的。
+   *
+   * 已經有編號的帳號保留原號：重跑 seed 不該讓同一個人換一個員工編號。
+   */
+  const employeeNoOf = async (target: Company, existing?: User | null): Promise<string> => {
+    if (existing?.employeeNo) return existing.employeeNo;
+
+    const prefix = `EMP-${target.code}`;
+    const seq = await caseEncodeService.next({ prefix, seqDate: '2026', pad: 4 });
+
+    return `${target.code}${seq.slice(prefix.length)}`;
+  };
 
   for (const a of accounts) {
     const password = await bcrypt.hash('Demo1234', 10);
     const existing = await userRepo.findOne({ where: { account: a.account, company: { id: a.company.id } } });
 
+    const profile = {
+      department: a.dept ? departments[a.dept] : null,
+      jobTitle: a.title,
+      englishName: a.english,
+      email: `${a.account}@demo.example`,
+      employeeNo: await employeeNoOf(a.company, existing),
+      hireDate: '2026-01-01',
+      homeSys: a.home,
+      // 示範帳號不要求首次改密碼：否則每個示範流程都要先過改密碼畫面
+      mustChangePassword: false,
+      passwordChangedAt: new Date(now - 40 * 86400000)
+    };
+
     // 已存在也要更新角色與密碼：seed 的意義是「把環境帶到宣告的狀態」，
     // 只做 insert 的話，改過預設密碼之後舊環境會停在對不上的狀態
     if (existing) {
-      await userRepo.update(existing.id, { name: a.name, role: roles[a.role], password, active: true });
+      await userRepo.update(existing.id, { name: a.name, role: roles[a.role], password, active: true, ...profile });
       continue;
     }
 
     await userRepo.save(
-      userRepo.create({ company: a.company, role: roles[a.role], account: a.account, name: a.name, password, active: true })
+      userRepo.create({
+        company: a.company,
+        role: roles[a.role],
+        account: a.account,
+        name: a.name,
+        password,
+        active: true,
+        ...profile
+      })
+    );
+  }
+
+  /**
+   * 校正員工編號的計數器。
+   *
+   * 用**資料庫實際的最大號**而不是「這一輪發了幾個」：環境裡的編號可能來自
+   * 更早的版本、或是有人用系統手動建過帳號。相信自己發了幾個，就會在下一次
+   * 新增帳號時撞上唯一索引，而錯誤訊息只說 duplicate key。
+   *
+   * `seedCounters` 用 GREATEST，所以這個校正只會把計數器往前推，不會倒退。
+   */
+  const empMax = await userRepo.query(
+    `SELECT c.code,
+            MAX((substring(u.employee_no from '[0-9]{4}$'))::int) AS max_no
+       FROM users u
+       JOIN companies c ON c.id = u.company_id
+      WHERE u.employee_no IS NOT NULL
+      GROUP BY c.code`
+  );
+
+  await caseEncodeService.seedCounters(
+    empMax.map((r: { code: string; max_no: number }) => ({
+      prefix: `EMP-${r.code}`,
+      seqDate: '2026',
+      lastNumber: Number(r.max_no)
+    }))
+  );
+
+  // 主管關聯要等所有人都建立之後才掛得上
+  for (const a of accounts.filter((x) => x.manager)) {
+    const self = await userRepo.findOne({ where: { account: a.account, company: { id: a.company.id } } });
+    const boss = await userRepo.findOne({ where: { account: a.manager!, company: { id: a.company.id } } });
+    if (self && boss) await userRepo.update(self.id, { manager: boss });
+  }
+
+  // ─── 車機 API Key ───────────────────────────────────────────────
+  //
+  // 車機不該拿人的帳號登入：人離職要停帳號，但車機還在跑。
+  // 明文只在核發時出現一次，所以 seed 用固定的示範金鑰讓文件寫得出來。
+  const DEMO_API_KEY = 'rp_demo_device_key_0001';
+  if (!(await apiKeyRepo.exists({ where: { prefix: DEMO_API_KEY.slice(0, 10) } }))) {
+    await apiKeyRepo.save(
+      apiKeyRepo.create({
+        company,
+        name: '示範車機',
+        prefix: DEMO_API_KEY.slice(0, 10),
+        keyHash: createHash('sha256').update(DEMO_API_KEY).digest('hex'),
+        scopes: [ACTION.CASE.CREATE, ACTION.TRACK.CREATE, ACTION.SURVEY.CREATE],
+        isActive: true
+      })
     );
   }
 
   const inspector = await userRepo.findOneByOrFail({ account: 'inspector', company: { id: company.id } });
+  const sifter = await userRepo.findOneByOrFail({ account: 'sifter', company: { id: company.id } });
   const admin = await userRepo.findOneByOrFail({ account: 'admin', company: { id: company.id } });
   const workers = await userRepo.find({ where: [{ account: 'worker1' }, { account: 'worker2' }] });
 
@@ -356,8 +542,13 @@ function makeRandom(seed: number): () => number {
     let section = await sectionRepo.findOne({ where: { key: d.key, company: { id: company.id } } });
     if (!section) section = await sectionRepo.save(sectionRepo.create({ company, key: d.key, name: d.name }));
 
-    let ps = await projectSectionRepo.findOne({ where: { project: { id: activeProject.id }, section: { id: section.id } } });
-    if (!ps) ps = await projectSectionRepo.save(projectSectionRepo.create({ project: activeProject, section, isActive: true }));
+    let ps = await projectSectionRepo.findOne({
+      where: { project: { id: activeProject.id }, section: { id: section.id } }
+    });
+    if (!ps)
+      ps = await projectSectionRepo.save(
+        projectSectionRepo.create({ project: activeProject, section, isActive: true })
+      );
 
     // 轄區掛在「標案-工務段」之下：同一個工務段在不同標案負責的行政區可以不同
     for (const name of d.districts) {
@@ -389,7 +580,7 @@ function makeRandom(seed: number): () => number {
   type PendingCase = {
     entity: PatrolCase;
     address?: { county: string; district: string; cavlge: string; road: string; houseNumber: string };
-    status: { status: number; edited: number; needRepair: number };
+    status: { status: number; edited: number; needRepair: number; reviewed: boolean };
   };
 
   let createdCases = 0;
@@ -402,22 +593,42 @@ function makeRandom(seed: number): () => number {
     const saved = await caseRepo.save(batch.map((b) => b.entity));
 
     const addresses = saved
-      .map((c, i) => (batch[i].address ? addressRepo.create({ patrolCase: c, ...batch[i].address, address: `${batch[i].address!.road}${batch[i].address!.houseNumber}` , oAddress: `${batch[i].address!.county}${batch[i].address!.district}${batch[i].address!.road}${batch[i].address!.houseNumber}` }) : null))
+      .map((c, i) =>
+        batch[i].address
+          ? addressRepo.create({
+              patrolCase: c,
+              ...batch[i].address,
+              address: `${batch[i].address!.road}${batch[i].address!.houseNumber}`,
+              oAddress: `${batch[i].address!.county}${batch[i].address!.district}${batch[i].address!.road}${batch[i].address!.houseNumber}`
+            })
+          : null
+      )
       .filter((a): a is PatrolCaseAddress => a !== null);
 
     if (addresses.length) await addressRepo.save(addresses);
 
     await caseStatusRepo.save(
-      saved.map((c, i) =>
-        caseStatusRepo.create({
+      saved.map((c, i) => {
+        const st = batch[i].status;
+        // 判定過的才有判讀員。兩個人輪流判，統計與薪資才比較得出差異 ——
+        // 全部掛在同一個人身上的話，「誰的準確率比較高」這個問題沒有答案
+        const judged = st.status !== 0;
+        const judgedBy = judged ? (i % 3 === 0 ? sifter : inspector) : undefined;
+        const judgedAt = judged ? new Date(c.dtRecord.getTime() + 3600000) : undefined;
+
+        return caseStatusRepo.create({
           patrolCase: c,
-          status: batch[i].status.status,
-          edited: batch[i].status.edited,
-          needRepair: batch[i].status.needRepair,
-          updStatusUsr: batch[i].status.status ? inspector : undefined,
-          updStatusUsrAt: batch[i].status.status ? new Date(c.dtRecord.getTime() + 3600000) : undefined
-        })
-      )
+          status: st.status,
+          edited: st.edited,
+          needRepair: st.needRepair,
+          updStatusUsr: judgedBy,
+          updStatusUsrAt: judgedAt,
+          // 約一成五經過管理者覆核：覆核分頁要有東西，而「大部分還沒覆核」
+          // 才是真實的狀態 —— 覆核是抽查，不是逐筆重做
+          updStatusAdm: judged && st.reviewed ? admin : undefined,
+          updStatusAdmAt: judged && st.reviewed ? new Date(c.dtRecord.getTime() + 7200000) : undefined
+        });
+      })
     );
 
     // 歷程帶完整快照：沒有快照的歷程看得到「發生過什麼」，卻無法比較版本或還原
@@ -525,7 +736,7 @@ function makeRandom(seed: number): () => number {
               houseNumber: `${Math.floor(random() * 300) + 1}號`
             }
           : undefined,
-      status: { status, edited: random() < 0.15 ? 1 : 0, needRepair }
+      status: { status, edited: random() < 0.15 ? 1 : 0, needRepair, reviewed: status !== 0 && random() < 0.15 }
     });
 
     createdCases += 1;
@@ -539,6 +750,87 @@ function makeRandom(seed: number): () => number {
   }
 
   await flush(pending);
+
+  /**
+   * 連續鱷魚狀裂縫路段。
+   *
+   * 隨機散佈的龜裂永遠湊不出「連續」——序號相鄰的兩筆不會剛好在十公尺內。
+   * 但那正是這個系統要抓的東西：單獨一處是局部修補，連續一整段代表路基失效，
+   * 要整段刨鋪。示範資料沒有這種路段的話，警示功能永遠是空的。
+   *
+   * 三段，各 6–9 筆，沿著一條線每隔 6 公尺一筆、序號連號。
+   */
+  const alligatorPending: PendingCase[] = [];
+  let alligatorCount = 0;
+
+  for (let g = 0; g < 3; g += 1) {
+    const road = roads[g % roads.length];
+    const district = DISTRICTS[g % DISTRICTS.length];
+    const car = `DEMO-${String(g + 1).padStart(3, '0')}`;
+    const startLng = baseLng + (g - 1) * 0.014;
+    const startLat = baseLat + (g - 1) * 0.009;
+    const count = 6 + g;
+    // 每筆往東北推約 6 公尺：判定門檻是 10 公尺，這樣連得起來
+    const step = 0.00005;
+    const dtBase = now - (g + 2) * 86400000;
+
+    for (let k = 0; k < count; k += 1) {
+      const externalId = `DEMO-ALG-${g + 1}-${String(k + 1).padStart(2, '0')}`;
+      if (await caseRepo.exists({ where: { externalId } })) continue;
+
+      const lng = startLng + k * step;
+      const lat = startLat + k * step * 0.7;
+      const length = Number((1.2 + random() * 0.8).toFixed(2));
+      const width = Number((0.9 + random() * 0.6).toFixed(2));
+      const dtRecord = new Date(dtBase + k * 30_000);
+
+      alligatorPending.push({
+        entity: caseRepo.create({
+          company,
+          project: activeProject,
+          reporter: inspector,
+          externalId,
+          caseNum: `${activeProject.prjId}${String(9000 + g * 20 + k).padStart(6, '0')}`,
+          crackType: 'Alligator_Cracking',
+          // 連續路段多半是嚴重的：那是路基失效而不是表面裂縫
+          degree: k % 3 === 0 ? 'A' : 'B',
+          crackId: k + 1,
+          source: 'VEHICLE',
+          car,
+          dtRecord,
+          length,
+          width,
+          area: Number((length * width).toFixed(2)),
+          depth: Number((3 + random() * 4).toFixed(2)),
+          img: `demo/case/${externalId}.jpg`,
+          imgDetect: `demo/case/${externalId}_detect.jpg`,
+          longitude: Number(lng.toFixed(6)),
+          latitude: Number(lat.toFixed(6)),
+          rawLongitude: Number(lng.toFixed(6)),
+          rawLatitude: Number(lat.toFixed(6)),
+          heading: 45,
+          altitude: 95,
+          geom: { type: 'Point', coordinates: [lng, lat] },
+          // 序號連號是判定的另一半條件：車機是照拍攝順序編號的
+          serialNo: 5000 + g * 100 + k,
+          path: `demo/path/${car}/${dtRecord.toISOString().slice(0, 10)}.json`,
+          remark: k === 0 ? '連續龜裂起點，建議整段評估' : undefined
+        }),
+        address: {
+          county: '示範市',
+          district,
+          cavlge: CAVLGES[g % CAVLGES.length],
+          road,
+          houseNumber: `${100 + k * 2}號`
+        },
+        status: { status: 1, edited: 0, needRepair: 1, reviewed: false }
+      });
+
+      alligatorCount += 1;
+    }
+  }
+
+  await flush(alligatorPending);
 
   // ─── 派工單（主表 / 狀態 / 取樣 / 照片）──────────────────────────
 
@@ -566,7 +858,8 @@ function makeRandom(seed: number): () => number {
     // 全部隨機的話，看板上會出現「上個月派的單還在待處理」這種不合理的分布，
     // 而那正是逾期篩選要抓的東西 —— 假資料把它變成雜訊就沒有意義了
     const ageDays = (now - dispatchDate.getTime()) / 86400000;
-    const orderStatus = ageDays > 20 ? (random() < 0.85 ? 3 : 2) : ageDays > 7 ? Math.floor(random() * 3) + 1 : Math.floor(random() * 2);
+    const orderStatus =
+      ageDays > 20 ? (random() < 0.85 ? 3 : 2) : ageDays > 7 ? Math.floor(random() * 3) + 1 : Math.floor(random() * 2);
 
     // 車巡案件轉來的一律是 PC；PD 的來源是巡查單，在下一段另外建
     const type = 'PC';
@@ -586,8 +879,10 @@ function makeRandom(seed: number): () => number {
         type,
         dispatchDate: dispatchDate.toISOString().slice(0, 10),
         dueDate: dueDate.toISOString().slice(0, 10),
-        workStartDate: orderStatus >= 1 ? new Date(dispatchDate.getTime() + 86400000).toISOString().slice(0, 10) : undefined,
-        workEndDate: orderStatus >= 2 ? new Date(dispatchDate.getTime() + 2 * 86400000).toISOString().slice(0, 10) : undefined,
+        workStartDate:
+          orderStatus >= 1 ? new Date(dispatchDate.getTime() + 86400000).toISOString().slice(0, 10) : undefined,
+        workEndDate:
+          orderStatus >= 2 ? new Date(dispatchDate.getTime() + 2 * 86400000).toISOString().slice(0, 10) : undefined,
         workUnit: WORK_UNIT_DEF[Math.floor(random() * WORK_UNIT_DEF.length)].key,
         dispatcher: admin,
         county: c.address?.county ?? '示範市',
@@ -672,7 +967,10 @@ function makeRandom(seed: number): () => number {
           prjId: activeProject.prjId,
           dispatchDate: order.dispatchDate,
           dueDate: order.dueDate ?? null,
-          workerUserIds: crew.filter(Boolean).map((u) => u.id).sort(),
+          workerUserIds: crew
+            .filter(Boolean)
+            .map((u) => u.id)
+            .sort(),
           workUnit: order.workUnit ?? null,
           district: order.district,
           address: order.address,
@@ -732,6 +1030,70 @@ function makeRandom(seed: number): () => number {
     createdOrders += 1;
   }
 
+  // ─── 門牌圖資 ───────────────────────────────────────────────────
+
+  /**
+   * 沿著示範道路產生門牌點位。
+   *
+   * 正式環境的門牌來自國土測繪中心的圖資；此處以固定亂數種子合成，
+   * 目的是讓地址自動完成與座標反查有真實的資料結構可以操作 ——
+   * 這兩項功能的行為差異（模糊比對、搜尋半徑上限）只有在有資料時才顯現。
+   */
+  const addressCount = await addressPointRepo.count();
+  let createdAddresses = 0;
+
+  if (addressCount === 0) {
+    const points: AddressPoint[] = [];
+
+    for (const [ri, road] of roads.entries()) {
+      // 每條路一個方位，門牌沿線遞增；奇偶號分列道路兩側，與實際編碼慣例一致
+      const angle = (ri / roads.length) * Math.PI * 2;
+      const originLng = baseLng + Math.cos(angle) * 0.02;
+      const originLat = baseLat + Math.sin(angle) * 0.015;
+      const district = DISTRICTS[ri % DISTRICTS.length];
+
+      for (let n = 1; n <= 60; n += 1) {
+        const along = n / 60;
+        const side = n % 2 === 0 ? 1 : -1;
+
+        const lng = originLng + Math.cos(angle + Math.PI / 2) * side * 0.0004 + Math.cos(angle) * along * 0.012;
+        const lat = originLat + Math.sin(angle + Math.PI / 2) * side * 0.0004 + Math.sin(angle) * along * 0.009;
+
+        const number = `${n}號`;
+        points.push(
+          addressPointRepo.create({
+            county: '示範市',
+            district,
+            cavlge: `${district.slice(0, 1)}安里`,
+            road,
+            number,
+            fullAddress: `示範市${district}${road}${number}`,
+            geom: { type: 'Point', coordinates: [Number(lng.toFixed(7)), Number(lat.toFixed(7))] }
+          })
+        );
+      }
+    }
+
+    await addressPointRepo.save(points, { chunk: 200 });
+    createdAddresses = points.length;
+
+    // 標記這些門牌所在的網格已載入；查無門牌的網格同樣要記錄，
+    // 否則空白區域會在每次查詢時重新請求外部圖資
+    const grids = new Map<string, number>();
+    for (const p of points) {
+      const [lng, lat] = p.geom.coordinates;
+      const key = `${Math.floor(lng / 0.01)}:${Math.floor(lat / 0.01)}`;
+      grids.set(key, (grids.get(key) ?? 0) + 1);
+    }
+
+    await addressGridRepo.save(
+      [...grids.entries()].map(([key, count]) => {
+        const [gridX, gridY] = key.split(':').map(Number);
+        return addressGridRepo.create({ gridX, gridY, pointCount: count });
+      })
+    );
+  }
+
   // ─── 巡查單／巡修單（人在現場開的單）───────────────────────────
 
   /**
@@ -743,7 +1105,13 @@ function makeRandom(seed: number): () => number {
    */
   const MAINTENANCE_COUNT = Math.round(180 * SCALE);
   let createdMaintenances = 0;
-  let potholeSeq = 0;
+  // 從現有的最大號接續：seed 可重複執行，從 0 開始會撞上前一次留下的坑洞編號
+  const { max: maxPothole } = (await maintenanceRepo
+    .createQueryBuilder('m')
+    .select('COALESCE(MAX(m.pothole_number), 0)', 'max')
+    .getRawOne<{ max: string }>()) ?? { max: '0' };
+
+  let potholeSeq = Number(maxPothole);
 
   for (let i = 0; i < MAINTENANCE_COUNT; i += 1) {
     const surveyDate = new Date(now - Math.floor(random() * 60) * 86400000);
@@ -863,7 +1231,8 @@ function makeRandom(seed: number): () => number {
           dispatchDate: dispatchDate.toISOString().slice(0, 10),
           dueDate: new Date(dispatchDate.getTime() + 5 * 86400000).toISOString().slice(0, 10),
           workStartDate: dispatchDate.toISOString().slice(0, 10),
-          workEndDate: orderStatus === 3 ? new Date(dispatchDate.getTime() + 2 * 86400000).toISOString().slice(0, 10) : undefined,
+          workEndDate:
+            orderStatus === 3 ? new Date(dispatchDate.getTime() + 2 * 86400000).toISOString().slice(0, 10) : undefined,
           workUnit: 'SELF',
           dispatcher: admin,
           county: maintenance.county,
@@ -879,7 +1248,9 @@ function makeRandom(seed: number): () => number {
       );
 
       if (worker) await orderUserRepo.save(orderUserRepo.create({ workOrder: order, user: worker }));
-      await orderStatusRepo.save(orderStatusRepo.create({ workOrder: order, status: orderStatus, updStatusUsr: worker }));
+      await orderStatusRepo.save(
+        orderStatusRepo.create({ workOrder: order, status: orderStatus, updStatusUsr: worker })
+      );
       await improvementRepo.save(improvementRepo.create({ workOrder: order, sampleTaken: false }));
 
       if (orderStatus === 3) {
@@ -964,7 +1335,8 @@ function makeRandom(seed: number): () => number {
 
   // 車輛與標案也走關聯表：車輛會在標案之間調度，但舊案件仍要查得到當時是哪台車跑的
   for (const v of vehicles) {
-    if (await projectVehicleRepo.exists({ where: { project: { id: activeProject.id }, vehicle: { id: v.id } } })) continue;
+    if (await projectVehicleRepo.exists({ where: { project: { id: activeProject.id }, vehicle: { id: v.id } } }))
+      continue;
 
     await projectVehicleRepo.save(projectVehicleRepo.create({ project: activeProject, vehicle: v, isActive: true }));
   }
@@ -973,31 +1345,42 @@ function makeRandom(seed: number): () => number {
 
   let trackCount = await trackRepo.count({ where: { company: { id: company.id } } });
   if (trackCount === 0) {
-    for (const vehicle of vehicles.slice(0, 3)) {
+    for (const [vi, vehicle] of vehicles.slice(0, 3).entries()) {
+      /**
+       * 每台車有一條**固定的**巡查路線，每天走同一條 —— 真實的巡查就是這樣：
+       * 標案指定的路段每天都要跑一遍。
+       *
+       * 起點由車輛序號決定而不是亂數：起點每天亂跳的話，
+       * 巡查點只會在某一天被覆蓋到，覆蓋率看起來永遠像壞的，
+       * 而那正是這個功能要示範的數字。
+       */
+      const originLng = baseLng - 0.02 + vi * 0.012;
+      const originLat = baseLat - 0.015 + vi * 0.008;
+
       for (let day = 0; day < TRACK_DAYS; day += 1) {
-      // 每台車每天走一條折線，每 30 秒一點；速度與方位跟著轉向變化
-      let lng = baseLng - 0.02 + (random() - 0.5) * 0.01;
-      let lat = baseLat - 0.015 + (random() - 0.5) * 0.01;
-      const startAt = now - day * 86400_000 - 8 * 3600_000;
+        let lng = originLng;
+        let lat = originLat;
+        const startAt = now - day * 86400_000 - 8 * 3600_000;
 
-      const points = Array.from({ length: 360 }, (_, i) => {
-        // 每 60 點轉一次彎，做出「在路網上跑」的感覺而不是一條直線
-        const leg = Math.floor(i / 60);
-        lng += (leg % 2 === 0 ? 1 : 0.2) * 0.0009 + (random() - 0.5) * 0.0002;
-        lat += (leg % 2 === 0 ? 0.2 : 1) * 0.0007 + (random() - 0.5) * 0.0002;
+        const points = Array.from({ length: 360 }, (_, i) => {
+          // 每 60 點轉一次彎，做出「在路網上跑」的感覺而不是一條直線。
+          // 每天的偏移只有幾公尺：同一條路線，但不是完全重疊的軌跡
+          const leg = Math.floor(i / 60);
+          lng += (leg % 2 === 0 ? 1 : 0.2) * 0.0009 + (random() - 0.5) * 0.00006;
+          lat += (leg % 2 === 0 ? 0.2 : 1) * 0.0007 + (random() - 0.5) * 0.00006;
 
-        return trackRepo.create({
-          company,
-          vehicle,
-          project: activeProject,
-          geom: { type: 'Point', coordinates: [lng, lat] },
-          speedKph: Number((15 + random() * 35).toFixed(1)),
-          heading: Number((random() * 360).toFixed(0)),
-          gpsHdop: Number((0.6 + random() * 1.5).toFixed(2)),
-          isTripStart: i === 0,
-          recordedAt: new Date(startAt + i * 30_000)
+          return trackRepo.create({
+            company,
+            vehicle,
+            project: activeProject,
+            geom: { type: 'Point', coordinates: [lng, lat] },
+            speedKph: Number((15 + random() * 35).toFixed(1)),
+            heading: Number((random() * 360).toFixed(0)),
+            gpsHdop: Number((0.6 + random() * 1.5).toFixed(2)),
+            isTripStart: i === 0,
+            recordedAt: new Date(startAt + i * 30_000)
+          });
         });
-      });
 
         // 分批寫入：一次 insert 幾百筆會讓參數數量超過 Postgres 上限
         for (let i = 0; i < points.length; i += 100) await trackRepo.save(points.slice(i, i + 100));
@@ -1073,15 +1456,19 @@ function makeRandom(seed: number): () => number {
       [vehicle.id]
     );
 
-    const onRoute: [number, number][] = sampled.map((r: { lng: number; lat: number }) => [Number(r.lng), Number(r.lat)]);
+    const onRoute: [number, number][] = sampled.map((r: { lng: number; lat: number }) => [
+      Number(r.lng),
+      Number(r.lat)
+    ]);
 
     // 第三條往北偏 0.01 度(約 1.1 公里)，遠超過 30 公尺的緩衝距離
     const coordinates: [number, number][] =
       i < 2 && onRoute.length >= 2
         ? onRoute
-        : (onRoute.length >= 2 ? onRoute : Array.from({ length: 8 }, (_, k) => [baseLng + k * 0.0075, baseLat + k * 0.005] as [number, number])).map(
-            ([lng, lat]) => [lng, lat + 0.01] as [number, number]
-          );
+        : (onRoute.length >= 2
+            ? onRoute
+            : Array.from({ length: 8 }, (_, k) => [baseLng + k * 0.0075, baseLat + k * 0.005] as [number, number])
+          ).map(([lng, lat]) => [lng, lat + 0.01] as [number, number]);
 
     await planRepo.save(
       planRepo.create({
@@ -1099,7 +1486,190 @@ function makeRandom(seed: number): () => number {
     planCount += 1;
   }
 
-  await planRepo.query(`UPDATE patrol_plans SET route_km = ROUND((ST_Length(route) / 1000)::numeric, 2) WHERE route_km = 0`);
+  await planRepo.query(
+    `UPDATE patrol_plans SET route_km = ROUND((ST_Length(route) / 1000)::numeric, 2) WHERE route_km = 0`
+  );
+
+  // ─── 道路線段、區塊與巡查點 ─────────────────────────────────────
+  //
+  // 正式環境的路網來自政府開放圖資；此處以固定亂數種子合成，
+  // 但刻意保留圖資的兩個真實特性：**部分線段沒有名字**、
+  // **管轄單位混在一起** —— 少了這兩點，「道路設定」這個功能
+  // 看起來就只是一張沒有用途的清單。
+
+  const JURISDICTIONS = ['CITY', 'CITY', 'CITY', 'TOWNSHIP', 'HIGHWAY'] as const;
+  let roadLineCount = 0;
+
+  if ((await roadLineRepo.count({ where: { company: { id: company.id } } })) === 0) {
+    const lines: RoadLine[] = [];
+
+    for (let i = 0; i < 120; i += 1) {
+      const named = random() > 0.22; // 約兩成沒有名字
+      const road = roads[i % roads.length];
+      const district = DISTRICTS[i % DISTRICTS.length];
+
+      const startLng = baseLng - 0.035 + (i % 12) * 0.006;
+      const startLat = baseLat - 0.03 + Math.floor(i / 12) * 0.006;
+      const coordinates: [number, number][] = Array.from({ length: 4 }, (_, k) => [
+        startLng + k * 0.0035 + (random() - 0.5) * 0.0006,
+        startLat + k * 0.0022 + (random() - 0.5) * 0.0006
+      ]);
+
+      lines.push(
+        roadLineRepo.create({
+          company,
+          code: `RL-${String(i + 1).padStart(4, '0')}`,
+          // 無名線段的原始名稱是空字串，不是 null —— 圖資就是這樣給的
+          roadName: named ? `${road}` : '',
+          county: '示範市',
+          district,
+          jurisdiction: JURISDICTIONS[i % JURISDICTIONS.length],
+          laneCount: 2 + (i % 3),
+          // 少數線段預設排除：施工中或不歸自己管的
+          isActive: random() > 0.12,
+          geom: { type: 'LineString', coordinates },
+          remark: random() < 0.08 ? '施工中，本季不巡' : undefined
+        })
+      );
+    }
+
+    await roadLineRepo.save(lines, { chunk: 50 });
+    roadLineCount = lines.length;
+
+    // 長度交給 PostGIS 算：前端或程式估出來的公里數在不同投影下會差幾個百分點
+    await roadLineRepo.query(`UPDATE road_lines SET length_m = ROUND(ST_Length(geom)::numeric, 2) WHERE length_m = 0`);
+  }
+
+  let roadBlockCount = 0;
+  if ((await roadBlockRepo.count({ where: { company: { id: company.id } } })) === 0) {
+    const savedLines = await roadLineRepo.find({ where: { company: { id: company.id } }, take: 60, order: { id: 'ASC' } });
+    const blocks: RoadBlock[] = [];
+
+    for (const [i, line] of savedLines.entries()) {
+      const [lng, lat] = line.geom.coordinates[0];
+      const w = 0.0006 + random() * 0.0004;
+      const h = 0.0004 + random() * 0.0003;
+
+      blocks.push(
+        roadBlockRepo.create({
+          company,
+          roadLine: line,
+          code: `RB-${String(i + 1).padStart(4, '0')}`,
+          roadName: line.roadName || `(無名路段 ${line.code})`,
+          county: line.county,
+          district: line.district,
+          blockType: (['MAIN', 'SECONDARY', 'LANE', 'EXPRESS'] as const)[i % 4],
+          // 三分之一還沒設定：這個功能的用途就是把它們設完
+          status: i % 3 === 0 ? 0 : i % 7 === 0 ? 3 : 1,
+          laneCount: line.laneCount,
+          widthM: (line.laneCount * 3.5).toFixed(2),
+          geom: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [lng, lat],
+                [lng + w, lat],
+                [lng + w, lat + h],
+                [lng, lat + h],
+                [lng, lat]
+              ]
+            ]
+          }
+        })
+      );
+    }
+
+    await roadBlockRepo.save(blocks, { chunk: 50 });
+    roadBlockCount = blocks.length;
+
+    // 面積與長度由幾何算出來，不相信匯入的數字
+    await roadBlockRepo.query(
+      `UPDATE road_blocks
+          SET area_m2 = ROUND(ST_Area(geom)::numeric, 2),
+              length_m = ROUND(ST_Perimeter(geom)::numeric / 2, 2)
+        WHERE area_m2 IS NULL`
+    );
+  }
+
+  let patrolPointCount = 0;
+  if ((await patrolPointRepo.count({ where: { company: { id: company.id } } })) === 0) {
+    const points: PatrolPoint[] = [];
+
+    /**
+     * 巡查點沿著**實際軌跡**佈設，每台車八個，另外四個刻意放在路線外。
+     *
+     * 沿著計畫路線佈設看起來比較合理，但計畫路線是從軌跡取樣來的近似值，
+     * 覆蓋率會因為取樣誤差而莫名其妙地低 —— 而示範資料的重點是
+     * 「這個數字看得懂」：大部分有到、少數沒到，那才像真的。
+     */
+    const sampled = await trackRepo.query(
+      `SELECT vehicle_id AS "vehicleId",
+              ST_X(geom::geometry) AS lng,
+              ST_Y(geom::geometry) AS lat
+         FROM (
+           SELECT vehicle_id, geom,
+                  ROW_NUMBER() OVER (PARTITION BY vehicle_id ORDER BY recorded_at) AS rn,
+                  COUNT(*) OVER (PARTITION BY vehicle_id) AS total
+             FROM vehicle_tracks
+            WHERE company_id = $1
+         ) s
+        WHERE rn % GREATEST(1, (total / 8)::int) = 0
+        ORDER BY vehicle_id, rn`,
+      [company.id]
+    );
+
+    const byVehicle = new Map<number, { lng: number; lat: number }[]>();
+    for (const row of sampled as { vehicleId: number; lng: number; lat: number }[]) {
+      const list = byVehicle.get(Number(row.vehicleId)) ?? [];
+      if (list.length < 8) list.push({ lng: Number(row.lng), lat: Number(row.lat) });
+      byVehicle.set(Number(row.vehicleId), list);
+    }
+
+    let seq = 0;
+    for (const [vehicleId, coords] of byVehicle) {
+      for (const c of coords) {
+        seq += 1;
+        points.push(
+          patrolPointRepo.create({
+            company,
+            project: activeProject,
+            code: `PT-${String(seq).padStart(3, '0')}`,
+            name: `${roads[seq % roads.length]}路口 ${seq}`,
+            county: '示範市',
+            district: DISTRICTS[seq % DISTRICTS.length],
+            roadName: roads[seq % roads.length],
+            radiusM: 30 + (seq % 3) * 10,
+            isActive: true,
+            // 偏移幾公尺：巡查點是路口的中心，車子不會正好壓在上面
+            geom: { type: 'Point', coordinates: [c.lng + (random() - 0.5) * 0.0002, c.lat + (random() - 0.5) * 0.0002] }
+          })
+        );
+      }
+      void vehicleId;
+    }
+
+    // 四個刻意在路線外：覆蓋率一直是 100% 的話，看板上那個數字沒有人會去看
+    for (let k = 0; k < 4; k += 1) {
+      seq += 1;
+      points.push(
+        patrolPointRepo.create({
+          company,
+          project: activeProject,
+          code: `PT-${String(seq).padStart(3, '0')}`,
+          name: `${roads[k % roads.length]}偏遠路口 ${k + 1}`,
+          county: '示範市',
+          district: DISTRICTS[k % DISTRICTS.length],
+          roadName: roads[k % roads.length],
+          radiusM: 30,
+          isActive: true,
+          geom: { type: 'Point', coordinates: [baseLng + 0.05 + k * 0.004, baseLat + 0.04 + k * 0.003] }
+        })
+      );
+    }
+
+    if (points.length) await patrolPointRepo.save(points);
+    patrolPointCount = points.length;
+  }
 
   // ─── 鋪面調查 ───────────────────────────────────────────────────
 
@@ -1121,26 +1691,71 @@ function makeRandom(seed: number): () => number {
         })
       );
 
+      // 委託明細：業主給的是一份路段清單，不是一堆點。
+      // 沒有明細的話，「這張委託單做完了沒有」只能靠人去數點位
+      const detail = await surveyDetailRepo.save(
+        surveyDetailRepo.create({
+          order,
+          seq: 1,
+          road: `${seg.roadName}${seg.section ?? ''}`,
+          roadStart: `${roads[i % roads.length]}路口`,
+          roadEnd: `${roads[(i + 1) % roads.length]}路口`,
+          stationK: i,
+          stationM: Math.floor(random() * 900),
+          direction: (['BOTH', 'FORWARD', 'BACKWARD'] as const)[i % 3],
+          laneCount: seg.laneCount,
+          sampleCount: 3,
+          roadLengthM: Number(seg.lengthM).toFixed(2),
+          roadWidthM: (seg.laneCount * 3.5).toFixed(2),
+          remark: i === 0 ? '含路口十字範圍' : undefined
+        })
+      );
+
       const coords = seg.geom.coordinates;
       for (let k = 0; k < 3; k += 1) {
         const done = i === 0 || (i === 1 && k === 0);
         const pci = 40 + random() * 40;
+        // 三分之一做成 App 現場收案：專家系統要看得出「哪些是現場填的」，
+        // 而現場填的欄位(車道、天氣、破壞尺寸)只有那一批才有
+        const fromApp = k === 2;
+        const crack = CRACK_TYPE_DEF[Math.floor(random() * CRACK_TYPE_DEF.length)];
+        const dtypeLength = Number((0.5 + random() * 2).toFixed(2));
+        const dtypeWidth = Number((0.3 + random() * 1.5).toFixed(2));
 
         await surveyCaseRepo.save(
           surveyCaseRepo.create({
             company,
             order,
+            detail,
+            caseNum: `${activeProject.prjId}SV2608${String(i * 3 + k + 1).padStart(4, '0')}`,
+            externalId: fromApp ? `SV-APP-DEMO-${i}-${k}` : undefined,
+            source: fromApp ? 'APP' : 'WEB',
             segment: seg,
             geom: { type: 'Point', coordinates: coords[k % coords.length] },
             roadName: `${seg.roadName}${seg.section ?? ''}`,
             method: (['VISUAL', 'CORE_DRILL', 'FWD'] as const)[k % 3],
             state: done ? 'DONE' : 'PENDING',
+            county: '示範市',
+            district: seg.district,
+            lane: fromApp ? (k % seg.laneCount) + 1 : undefined,
+            stationK: detail.stationK,
+            stationM: (detail.stationM ?? 0) + k * 50,
+            weather: fromApp ? ['晴', '陰', '雨'][Math.floor(random() * 3)] : undefined,
+            dtype: fromApp ? crack.key : undefined,
+            degree: fromApp ? DEGREE_DEF[Math.floor(random() * DEGREE_DEF.length)].key : undefined,
+            dtypeLength: fromApp ? dtypeLength : undefined,
+            dtypeWidth: fromApp ? dtypeWidth : undefined,
+            dtypeArea: fromApp ? Number((dtypeLength * dtypeWidth).toFixed(3)) : undefined,
+            dtypeQty: fromApp ? Math.floor(random() * 4) + 1 : undefined,
             thicknessCm: done ? (8 + random() * 8).toFixed(2) : undefined,
             pci: done ? pci.toFixed(2) : undefined,
             iri: done ? (2 + random() * 3).toFixed(2) : undefined,
             surveyor: done ? inspector : undefined,
             surveyedAt: done ? new Date(now - random() * 7 * 86400000) : undefined,
-            finding: done ? '面層厚度偏低，建議納入年度刨鋪' : undefined
+            finding: done ? '面層厚度偏低，建議納入年度刨鋪' : undefined,
+            // 一張委託單留一筆已刪除的：業主要的「已刪除案件表」不能是空的
+            deletedAt: i === 2 && k === 2 ? new Date(now - 2 * 86400000) : undefined,
+            deletedBy: i === 2 && k === 2 ? admin : undefined
           })
         );
         surveyCount += 1;
@@ -1149,9 +1764,16 @@ function makeRandom(seed: number): () => number {
   }
 
   logger.log(`✅ Seed 完成`);
-  logger.log(`   車輛 ${vehicles.length} 台／軌跡 ${trackCount} 點／路段 ${segmentCount} 段／計畫 ${planCount} 條／調查點 ${surveyCount} 個`);
-  logger.log(`   公司 ${company.code}／帳號 ${accounts.length} 個／標案 ${projectDefs.length} 個／工務段 ${sectionDefs.length} 段／行政區 ${areas.length} 區`);
-  logger.log(`   新增案件 ${createdCases} 筆、巡查單 ${createdMaintenances} 張、派工單 ${createdOrders} 張`);
+  logger.log(
+    `   車輛 ${vehicles.length} 台／軌跡 ${trackCount} 點／路段 ${segmentCount} 段／計畫 ${planCount} 條／調查點 ${surveyCount} 個`
+  );
+  logger.log(
+    `   公司 ${company.code}／帳號 ${accounts.length} 個／標案 ${projectDefs.length} 個／工務段 ${sectionDefs.length} 段／行政區 ${areas.length} 區`
+  );
+  logger.log(`   新增案件 ${createdCases} 筆(含連續龜裂 ${alligatorCount} 筆)、巡查單 ${createdMaintenances} 張、派工單 ${createdOrders} 張`);
+  logger.log(`   門牌 ${createdAddresses} 筆`);
+  logger.log(`   道路線段 ${roadLineCount} 條／區塊 ${roadBlockCount} 個／巡查點 ${patrolPointCount} 個`);
+  logger.log(`   部門 ${departmentDefs.length} 個／車機金鑰 ${DEMO_API_KEY}`);
   logger.log(`   登入(廠商)：DEMO / admin / Demo1234`);
   logger.log(`   登入(平台)：ROOT / root / Demo1234    —— 開通廠商單位`);
   logger.log(`   登入(外包)：SUB01 / suboffice / Demo1234 —— 角色是管理員，但只拿得到被開通的七項權限`);

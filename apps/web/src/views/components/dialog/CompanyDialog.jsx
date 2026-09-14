@@ -23,7 +23,16 @@ const MODULE_LABEL = {
   SYSTEM: '系統'
 };
 
-const ACTION_LABEL = { READ: '檢視', CREATE: '新增', UPDATE: '修改', DELETE: '刪除', ACCEPT: '驗收', RUN: '執行', AGENT: '客服身分', AUDIT: '稽核' };
+const ACTION_LABEL = {
+  READ: '檢視',
+  CREATE: '新增',
+  UPDATE: '修改',
+  DELETE: '刪除',
+  ACCEPT: '驗收',
+  RUN: '執行',
+  AGENT: '客服身分',
+  AUDIT: '稽核'
+};
 
 /**
  * 下層單位：建立與授權開通。
@@ -64,7 +73,9 @@ export default function CompanyDialog({ open, row, onClose, onSaved }) {
     if (row) {
       companyApi
         .grants(row.ID)
-        .then((res) => setSelected(new Set((res.data?.GRANTS ?? []).filter((g) => g.IS_ACTIVE).map((g) => g.ACTION_KEY))))
+        .then((res) =>
+          setSelected(new Set((res.data?.GRANTS ?? []).filter((g) => g.IS_ACTIVE).map((g) => g.ACTION_KEY)))
+        )
         .catch(() => setSelected(new Set()));
     } else {
       setSelected(new Set());
@@ -216,14 +227,22 @@ export default function CompanyDialog({ open, row, onClose, onSaved }) {
                         onChange={() => toggleModule(keys)}
                       />
                     }
-                    label={<Typography variant="body2" sx={{ fontWeight: 600 }}>{MODULE_LABEL[mod] ?? mod}</Typography>}
+                    label={
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {MODULE_LABEL[mod] ?? mod}
+                      </Typography>
+                    }
                   />
 
                   {keys.map((key) => (
                     <FormControlLabel
                       key={key}
                       control={<Checkbox size="small" checked={selected.has(key)} onChange={() => toggle(key)} />}
-                      label={<Typography variant="caption">{ACTION_LABEL[key.split('.')[1]] ?? key.split('.')[1]}</Typography>}
+                      label={
+                        <Typography variant="caption">
+                          {ACTION_LABEL[key.split('.')[1]] ?? key.split('.')[1]}
+                        </Typography>
+                      }
                     />
                   ))}
                 </Stack>

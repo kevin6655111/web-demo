@@ -62,7 +62,11 @@ export default function ProjectDialog({ open, row, onClose, onSaved }) {
       setPickedVehicles((d.VEHICLES ?? []).filter((v) => v.IS_ACTIVE).map((v) => v.ID));
       setPickedCompanies((d.COMPANIES ?? []).filter((c) => c.IS_ACTIVE).map((c) => c.ID));
       setPickedSections(
-        Object.fromEntries((d.SECTIONS ?? []).filter((s) => s.IS_ACTIVE && s.SECTION_ID).map((s) => [s.SECTION_ID, (s.AREAS ?? []).map((a) => a.ID)]))
+        Object.fromEntries(
+          (d.SECTIONS ?? [])
+            .filter((s) => s.IS_ACTIVE && s.SECTION_ID)
+            .map((s) => [s.SECTION_ID, (s.AREAS ?? []).map((a) => a.ID)])
+        )
       );
     } catch (err) {
       setError(err.message);
@@ -108,23 +112,48 @@ export default function ProjectDialog({ open, row, onClose, onSaved }) {
     if (row) load();
 
     // 關聯的選項只在編輯時用得到，但先抓起來，切分頁時才不用等
-    fleetApi.vehicles().then((res) => setVehicles(res.data ?? [])).catch(() => {});
-    projectApi.sections().then((res) => setSections(res.data ?? [])).catch(() => {});
-    projectApi.areas().then((res) => setAreas(res.data ?? [])).catch(() => {});
-    authApi.orgUsers().then(() => {}).catch(() => {});
+    fleetApi
+      .vehicles()
+      .then((res) => setVehicles(res.data ?? []))
+      .catch(() => {});
+    projectApi
+      .sections()
+      .then((res) => setSections(res.data ?? []))
+      .catch(() => {});
+    projectApi
+      .areas()
+      .then((res) => setAreas(res.data ?? []))
+      .catch(() => {});
+    authApi
+      .orgUsers()
+      .then(() => {})
+      .catch(() => {});
     setCompanies([]);
   }, [open, row, load]);
 
   const basicFields = useMemo(
     () =>
       [
-        !editing && { key: 'PRJ_ID', label: '系統編號', required: true, placeholder: 'DEMO02', hint: '會成為案件編號的前綴，越短越好' },
+        !editing && {
+          key: 'PRJ_ID',
+          label: '系統編號',
+          required: true,
+          placeholder: 'DEMO02',
+          hint: '會成為案件編號的前綴，越短越好'
+        },
         { key: 'PRJ_NO', label: '案號', placeholder: '1150101-001', hint: '招標文件上的正式編號' },
         { key: 'PRJ_NAME', label: '標案簡稱', required: true },
         { key: 'PRJ_SUB', label: '標案子項', placeholder: '第一標' },
         { key: 'PRJ_MAIN', label: '標案全名', required: true, full: true },
         { key: 'PROPRIETOR', label: '業主單位', required: true },
-        { key: 'PROPRIETOR_LEVEL', label: '業主等級', type: 'select', required: true, options: LEVEL_OPTIONS, hint: '影響報表格式與上傳規則' },
+        {
+          key: 'PROPRIETOR_LEVEL',
+          label: '業主等級',
+          type: 'select',
+          required: true,
+          options: LEVEL_OPTIONS,
+          hint: '影響報表格式與上傳規則'
+        },
         !editing && { key: 'START_DATE', label: '日期(起)', type: 'date', required: true },
         !editing && { key: 'END_DATE', label: '日期(迄)', type: 'date', required: true },
         !editing && { key: 'BUDGET', label: '契約金額', type: 'number', unit: '元' },
@@ -159,13 +188,21 @@ export default function ProjectDialog({ open, row, onClose, onSaved }) {
   }, [pickedSections, sections, areas]);
 
   const vehicleSummary = useMemo(
-    () => (pickedVehicles.length ? pickedVehicles.map((id) => vehicles.find((v) => v.ID === id)?.PLATE_NO).filter(Boolean).join('、') : '尚未配置'),
+    () =>
+      pickedVehicles.length
+        ? pickedVehicles
+            .map((id) => vehicles.find((v) => v.ID === id)?.PLATE_NO)
+            .filter(Boolean)
+            .join('、')
+        : '尚未配置',
     [pickedVehicles, vehicles]
   );
 
   const saveBasic = async () => {
     const next = {};
-    const required = editing ? ['PRJ_NAME', 'PRJ_MAIN', 'PROPRIETOR'] : ['PRJ_ID', 'PRJ_NAME', 'PRJ_MAIN', 'PROPRIETOR', 'START_DATE', 'END_DATE'];
+    const required = editing
+      ? ['PRJ_NAME', 'PRJ_MAIN', 'PROPRIETOR']
+      : ['PRJ_ID', 'PRJ_NAME', 'PRJ_MAIN', 'PROPRIETOR', 'START_DATE', 'END_DATE'];
     for (const key of required) if (!String(form[key] ?? '').trim()) next[key] = '必填';
 
     setErrors(next);
@@ -277,7 +314,10 @@ export default function ProjectDialog({ open, row, onClose, onSaved }) {
             sx={{ minHeight: 38, '& .MuiTab-root': { minHeight: 38, textTransform: 'none' } }}
           >
             <Tab value="basic" label="基本資料" />
-            <Tab value="relation" label={`區域與車輛（${pickedVehicles.length} 車 / ${Object.keys(pickedSections).length} 段）`} />
+            <Tab
+              value="relation"
+              label={`區域與車輛（${pickedVehicles.length} 車 / ${Object.keys(pickedSections).length} 段）`}
+            />
           </Tabs>
         )}
 
@@ -348,7 +388,10 @@ export default function ProjectDialog({ open, row, onClose, onSaved }) {
                   const on = pickedSections[sec.ID] !== undefined;
 
                   return (
-                    <Box key={sec.ID} sx={{ border: (t) => `1px solid ${t.palette.divider}`, borderRadius: 1.5, p: 1.2 }}>
+                    <Box
+                      key={sec.ID}
+                      sx={{ border: (t) => `1px solid ${t.palette.divider}`, borderRadius: 1.5, p: 1.2 }}
+                    >
                       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: on ? 1 : 0 }}>
                         <Chip
                           size="small"

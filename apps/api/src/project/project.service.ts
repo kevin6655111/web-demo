@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { HttpResponse, type HttpResult } from '@/http/http-response';
+import { RedisService } from '@/redis/redis.service';
 import { Project, type ProjectState } from './entities/project.entity';
 import { CompanyProject } from './entities/company-project.entity';
 import { ProjectVehicle } from './entities/project-vehicle.entity';
@@ -11,6 +12,15 @@ import { SectionArea } from './entities/section-area.entity';
 import { Area } from './entities/area.entity';
 import { PatrolCase } from '@/case-patrol/entities/patrol-case.entity';
 import { CreateProjectDto, ProjectQueryDto, UpdateProjectStateDto, UpsertProjectRelationDto } from './project.dto';
+
+/**
+ * 標案清單的快取。
+ *
+ * TTL 短（60 秒）而非長：清單帶有案件統計，那個數字持續變動。
+ * 短 TTL 讓統計的落差有上界，而標案本身的變動由寫入時的明確清除處理。
+ */
+const PROJECT_CACHE_PREFIX = 'project:list:';
+const PROJECT_CACHE_TTL_MS = 60_000;
 
 @Injectable()
 export class ProjectService {
@@ -23,7 +33,8 @@ export class ProjectService {
     @InjectRepository(SectionArea) private readonly sectionAreaRepo: Repository<SectionArea>,
     @InjectRepository(Area) private readonly areaRepo: Repository<Area>,
     @InjectRepository(PatrolCase) private readonly caseRepo: Repository<PatrolCase>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly redisService: RedisService
   ) {}
 
   /**
@@ -35,13 +46,34 @@ export class ProjectService {
    * 一併帶出案件數與完修率，承辦不必為了看進度再點進去。
    */
   public async list(dto: ProjectQueryDto, companyId: number): Promise<HttpResult> {
+    // 標案本身極少變動，但這支端點一併帶出案件統計，而那段聚合的成本
+    // 隨案件數線性成長（1,800 筆時 0.4 ms，9 萬筆時 15 ms），
+    // 且標案下拉出現在多個畫面上，每次開啟都會呼叫。
+    //
+    // 快取整個回應而非只快取統計：查詢條件的組合會影響結果，
+    // 分開快取要處理兩者的一致性，而合起來只是多存幾份小 JSON。
+    const cacheKey = `${PROJECT_CACHE_PREFIX}${companyId}:${JSON.stringify(dto)}`;
+
+    // 只加在信封層，不要動 data —— 這裡的 data 是陣列，
+    // 用物件展開會把它變成 { 0: ..., 1: ... }，前端的 .map() 直接爆掉
+    const { value, cached } = await this.redisService.remember(cacheKey, PROJECT_CACHE_TTL_MS, () =>
+      this.computeList(dto, companyId)
+    );
+
+    return cached ? { ...value, cached: true } : value;
+  }
+
+  private async computeList(dto: ProjectQueryDto, companyId: number): Promise<HttpResult> {
     const qb = this.projectRepo
       .createQueryBuilder('p')
       .innerJoin('p.companyProjects', 'cp', 'cp.company_id = :companyId AND cp.is_active = true', { companyId })
       .orderBy('p.id', 'DESC');
 
     if (dto.PRJ_ID) qb.andWhere('p.prj_id ILIKE :prjId', { prjId: `%${dto.PRJ_ID}%` });
-    if (dto.KEYWORD) qb.andWhere('(p.prj_name ILIKE :kw OR p.prj_main ILIKE :kw OR p.proprietor ILIKE :kw)', { kw: `%${dto.KEYWORD}%` });
+    if (dto.KEYWORD)
+      qb.andWhere('(p.prj_name ILIKE :kw OR p.prj_main ILIKE :kw OR p.proprietor ILIKE :kw)', {
+        kw: `%${dto.KEYWORD}%`
+      });
     if (dto.STATE?.length) qb.andWhere('p.state IN (:...state)', { state: dto.STATE });
     if (dto.PROPRIETOR_LEVEL?.length) qb.andWhere('p.proprietor_level IN (:...level)', { level: dto.PROPRIETOR_LEVEL });
     if (dto.DATE_FROM) qb.andWhere('p.end_date >= :from', { from: dto.DATE_FROM });
@@ -102,7 +134,10 @@ export class ProjectService {
     const [companies, vehicles, sections] = await Promise.all([
       this.companyProjectRepo.find({ where: { project: { id } }, relations: { company: true } }),
       this.projectVehicleRepo.find({ where: { project: { id } }, relations: { vehicle: true } }),
-      this.projectSectionRepo.find({ where: { project: { id } }, relations: { section: true, sectionAreas: { area: true } } })
+      this.projectSectionRepo.find({
+        where: { project: { id } },
+        relations: { section: true, sectionAreas: { area: true } }
+      })
     ]);
 
     return HttpResponse.success({
@@ -120,14 +155,24 @@ export class ProjectService {
         END_DATE: project.endDate,
         BUDGET: Number(project.budget),
         ROAD_KM: Number(project.roadKm),
-        COMPANIES: companies.map((c) => ({ ID: c.company.id, CODE: c.company.code, NAME: c.company.name, ROLE: c.role, IS_ACTIVE: c.isActive })),
+        COMPANIES: companies.map((c) => ({
+          ID: c.company.id,
+          CODE: c.company.code,
+          NAME: c.company.name,
+          ROLE: c.role,
+          IS_ACTIVE: c.isActive
+        })),
         VEHICLES: vehicles.map((v) => ({ ID: v.vehicle.id, PLATE_NO: v.vehicle.plateNo, IS_ACTIVE: v.isActive })),
         SECTIONS: sections.map((ps) => ({
           ID: ps.id,
           SECTION_ID: ps.section?.id ?? null,
           SECTION_NAME: ps.section?.name ?? null,
           IS_ACTIVE: ps.isActive,
-          AREAS: (ps.sectionAreas ?? []).map((sa) => ({ ID: sa.area?.id ?? null, COUNTY: sa.area?.county, DISTRICT: sa.area?.district }))
+          AREAS: (ps.sectionAreas ?? []).map((sa) => ({
+            ID: sa.area?.id ?? null,
+            COUNTY: sa.area?.county,
+            DISTRICT: sa.area?.district
+          }))
         }))
       }
     });
@@ -158,12 +203,20 @@ export class ProjectService {
       );
 
       // 沒有這一步的話，建立者自己也看不到剛建好的標案
-      await manager.getRepository(CompanyProject).save(
-        manager.getRepository(CompanyProject).create({ company: { id: companyId }, project: { id: project.id }, role: 'MAIN', isActive: true })
-      );
+      await manager
+        .getRepository(CompanyProject)
+        .save(
+          manager
+            .getRepository(CompanyProject)
+            .create({ company: { id: companyId }, project: { id: project.id }, role: 'MAIN', isActive: true })
+        );
 
       return project;
     });
+
+    // 標案內容改變時明確清除：使用者剛改完會立刻回列表確認，
+    // 這是他們會注意到的落差；案件統計的落差則由 TTL 收斂
+    await this.redisService.delByPrefix(PROJECT_CACHE_PREFIX);
 
     return HttpResponse.success({ message: '標案已建立', data: { ID: saved.id, PRJ_ID: saved.prjId } });
   }
@@ -172,6 +225,10 @@ export class ProjectService {
   public async updateState(dto: UpdateProjectStateDto): Promise<HttpResult> {
     const result = await this.projectRepo.update({ id: dto.ID }, { state: dto.STATE as ProjectState });
     if (!result.affected) throw new NotFoundException(`找不到標案：${dto.ID}`);
+
+    // 標案內容改變時明確清除：使用者剛改完會立刻回列表確認，
+    // 這是他們會注意到的落差；案件統計的落差則由 TTL 收斂
+    await this.redisService.delByPrefix(PROJECT_CACHE_PREFIX);
 
     return HttpResponse.success({ message: '標案狀態已更新' });
   }
@@ -191,7 +248,11 @@ export class ProjectService {
         where: { project: { id: dto.PROJECT_ID }, company: { id: dto.TARGET_ID } }
       });
 
-      if (existing) await this.companyProjectRepo.update({ id: existing.id }, { isActive: dto.IS_ACTIVE ?? true, role: dto.ROLE ?? existing.role });
+      if (existing)
+        await this.companyProjectRepo.update(
+          { id: existing.id },
+          { isActive: dto.IS_ACTIVE ?? true, role: dto.ROLE ?? existing.role }
+        );
       else
         await this.companyProjectRepo.save(
           this.companyProjectRepo.create({
@@ -211,7 +272,11 @@ export class ProjectService {
       if (existing) await this.projectVehicleRepo.update({ id: existing.id }, { isActive: dto.IS_ACTIVE ?? true });
       else
         await this.projectVehicleRepo.save(
-          this.projectVehicleRepo.create({ project: { id: dto.PROJECT_ID }, vehicle: { id: dto.TARGET_ID }, isActive: dto.IS_ACTIVE ?? true })
+          this.projectVehicleRepo.create({
+            project: { id: dto.PROJECT_ID },
+            vehicle: { id: dto.TARGET_ID },
+            isActive: dto.IS_ACTIVE ?? true
+          })
         );
     }
 
@@ -223,19 +288,32 @@ export class ProjectService {
       const ps =
         existing ??
         (await this.projectSectionRepo.save(
-          this.projectSectionRepo.create({ project: { id: dto.PROJECT_ID }, section: { id: dto.TARGET_ID }, isActive: true })
+          this.projectSectionRepo.create({
+            project: { id: dto.PROJECT_ID },
+            section: { id: dto.TARGET_ID },
+            isActive: true
+          })
         ));
 
       if (existing) await this.projectSectionRepo.update({ id: existing.id }, { isActive: dto.IS_ACTIVE ?? true });
 
       // 轄區掛在「標案-工務段」之下：同一個工務段在不同標案負責的行政區可以不同
       for (const areaId of dto.AREA_IDS ?? []) {
-        const sa = await this.sectionAreaRepo.findOne({ where: { projectSection: { id: ps.id }, area: { id: areaId } } });
+        const sa = await this.sectionAreaRepo.findOne({
+          where: { projectSection: { id: ps.id }, area: { id: areaId } }
+        });
 
         if (sa) await this.sectionAreaRepo.update({ id: sa.id }, { isActive: true });
-        else await this.sectionAreaRepo.save(this.sectionAreaRepo.create({ projectSection: { id: ps.id }, area: { id: areaId }, isActive: true }));
+        else
+          await this.sectionAreaRepo.save(
+            this.sectionAreaRepo.create({ projectSection: { id: ps.id }, area: { id: areaId }, isActive: true })
+          );
       }
     }
+
+    // 標案內容改變時明確清除：使用者剛改完會立刻回列表確認，
+    // 這是他們會注意到的落差；案件統計的落差則由 TTL 收斂
+    await this.redisService.delByPrefix(PROJECT_CACHE_PREFIX);
 
     return HttpResponse.success({ message: '關聯已更新' });
   }
@@ -254,6 +332,8 @@ export class ProjectService {
 
     const rows = await qb.getMany();
 
-    return HttpResponse.successOrWarn({ data: rows.map((a) => ({ ID: a.id, COUNTY: a.county, DISTRICT: a.district })) });
+    return HttpResponse.successOrWarn({
+      data: rows.map((a) => ({ ID: a.id, COUNTY: a.county, DISTRICT: a.district }))
+    });
   }
 }

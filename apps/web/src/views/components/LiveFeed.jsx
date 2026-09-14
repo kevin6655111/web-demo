@@ -36,7 +36,15 @@ export default function LiveFeed({ rows = [], connected }) {
           >
             <Box
               className={c.IS_NEW ? 'pulse-dot' : undefined}
-              sx={{ position: 'relative', width: 9, height: 9, borderRadius: '50%', color: DashboardPresenter.statusColor(c.NEED_REPAIR), bgcolor: 'currentColor', flexShrink: 0 }}
+              sx={{
+                position: 'relative',
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                color: DashboardPresenter.statusColor(c.NEED_REPAIR),
+                bgcolor: 'currentColor',
+                flexShrink: 0
+              }}
             />
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { HttpResult } from '@/http/http-response';
 import { Audit } from '@decorators/audit.decorator';
@@ -6,7 +6,7 @@ import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
 import { ReportService } from './report.service';
-import { CreateReportDto, ReportIdDto } from './report.dto';
+import { CreateReportDto, ReportIdDto, ReportQueryDto } from './report.dto';
 
 @ApiTags('Report')
 @ApiBearerAuth('bearer')
@@ -33,8 +33,14 @@ export class ReportController {
   @ApiBody({
     type: CreateReportDto,
     examples: {
-      monthly: { summary: '當月全部案件(Excel)', value: { FORMAT: 'XLSX', DATE_FROM: '2026-08-01', DATE_TO: '2026-08-31' } },
-      official: { summary: '完修案件彙整(Word 公文)', value: { FORMAT: 'DOCX', STATUS: 'REPAIRED', DATE_FROM: '2026-08-01', DATE_TO: '2026-08-31' } }
+      monthly: {
+        summary: '當月全部案件(Excel)',
+        value: { FORMAT: 'XLSX', DATE_FROM: '2026-08-01', DATE_TO: '2026-08-31' }
+      },
+      official: {
+        summary: '完修案件彙整(Word 公文)',
+        value: { FORMAT: 'DOCX', STATUS: 'REPAIRED', DATE_FROM: '2026-08-01', DATE_TO: '2026-08-31' }
+      }
     }
   })
   @ApiResponse({ status: 201, description: '已排入產製。`data.REUSED` 為 true 表示沿用既有工作' })
@@ -46,6 +52,31 @@ export class ReportController {
   }
 
   /** 查詢報表狀態與下載網址 */
+  /**
+   * 報表種類。
+   *
+   * 必須宣告在 `report/:ID` 之前 —— Nest 依宣告順序比對路由，
+   * 反過來的話 `kind` 會被當成 id，得到「ID must be an integer number」。
+   */
+  @Get('report/kind')
+  @ApiOperation({
+    summary: '報表種類清單',
+    description: [
+      '十一種報表的代碼、中文名、所屬分類、接受的參數群組與可用格式。',
+      '',
+      '前端依 `PARAMS` 決定要顯示哪些條件欄位 —— 月報要選月份、鋪面報表要選委託單，',
+      '把所有欄位一次攤開會讓使用者填一堆不會被用到的條件。',
+      '',
+      '所需權限：`REPORT.READ`'
+    ].join('\n')
+  })
+  @ApiResponse({ status: 200, description: '查詢成功' })
+  @ApiCommonErrors()
+  @RequireAction(ACTION.REPORT.READ)
+  handleGetKinds(): HttpResult {
+    return this.reportService.getKinds();
+  }
+
   @Get('report/:ID')
   @ApiOperation({
     summary: '查詢報表狀態',
@@ -88,12 +119,18 @@ export class ReportController {
   @Get('report')
   @ApiOperation({
     summary: '報表清單',
-    description: ['最近 50 筆報表工作。超過 7 天的紀錄由排程自動清理。', '', '所需權限：`REPORT.READ`'].join('\n')
+    description: [
+      '最近 50 筆報表工作，可用 `KIND` 只看某一種。超過 7 天的紀錄由排程自動清理。',
+      '',
+      '`TITLE` 是產生當下的種類名稱快照 —— 中文名以後改了，舊報表仍對得上當時的叫法。',
+      '',
+      '所需權限：`REPORT.READ`'
+    ].join('\n')
   })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors()
   @RequireAction(ACTION.REPORT.READ)
-  async handleListReports(@User() user: AuthUser): Promise<HttpResult> {
-    return await this.reportService.listReports(user.companyId);
+  async handleListReports(@Query() dto: ReportQueryDto, @User() user: AuthUser): Promise<HttpResult> {
+    return await this.reportService.listReports(user.companyId, dto);
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { CreateBucketCommand, DeleteObjectCommand, HeadBucketCommand, PutObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { EnvService } from '@/env/env.service';
 
@@ -62,7 +62,9 @@ export class StorageService implements OnModuleInit {
    */
   public async putCasePhoto(externalId: string, body: Buffer, contentType = 'image/jpeg'): Promise<string> {
     const key = `cases/${externalId}.jpg`;
-    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })
+    );
     return key;
   }
 
@@ -78,7 +80,9 @@ export class StorageService implements OnModuleInit {
         : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
     const key = `reports/${reportId}.${ext}`;
-    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })
+    );
     return key;
   }
 
@@ -92,13 +96,38 @@ export class StorageService implements OnModuleInit {
 
   /** 通用上傳：呼叫端自己決定 key，讓不同領域有各自的命名規則 */
   public async putObject(key: string, body: Buffer, contentType: string): Promise<string> {
-    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })
+    );
     return key;
+  }
+
+  /**
+   * 物件是否存在。
+   *
+   * 用 `HeadObject` 而不是 `GetObject`：只要表頭，不必把幾百 KB 的照片拉下來
+   * 才知道它在不在。
+   *
+   * 「不存在」是正常結果而不是錯誤 —— 每日檢查要問的正是這個問題，
+   * 所以 404 回 false，其餘的錯誤(權限、連線)才往上拋。
+   */
+  public async exists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch (error: any) {
+      const status = error?.$metadata?.httpStatusCode;
+      if (status === 404 || error?.name === 'NotFound' || error?.name === 'NoSuchKey') return false;
+
+      throw error;
+    }
   }
 
   /** 產生短效讀取網址 */
   public async signGetUrl(key: string, expiresInSec = 300): Promise<string> {
     // 用對外位址簽：這個網址是要交給瀏覽器的，而瀏覽器解不到容器主機名
-    return await getSignedUrl(this.signClient, new GetObjectCommand({ Bucket: this.bucket, Key: key }), { expiresIn: expiresInSec });
+    return await getSignedUrl(this.signClient, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+      expiresIn: expiresInSec
+    });
   }
 }

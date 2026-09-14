@@ -1,4 +1,12 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata, UseGuards, applyDecorators } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  SetMetadata,
+  UseGuards,
+  applyDecorators
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { HttpRequest } from '@app-types/http.type';
 

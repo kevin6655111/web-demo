@@ -9,8 +9,6 @@ import { NEED_REPAIR_LABEL } from '../../../config/vocabulary';
 import { useRealtime } from '../../../hooks/useRealtime';
 import { useMapLayers } from '../../../context/MapContext';
 
-
-
 /** 破壞查詢：查詢條件 + 把案件圖層登錄到共用地圖 */
 export default function QVehicleCrack() {
   const { registerLayer, layerMap } = useMapLayers();
@@ -158,8 +156,8 @@ export default function QVehicleCrack() {
         <Divider sx={{ my: 1.5 }} />
 
         <Typography variant="caption" color="text.secondary">
-          顯示 {shown.length} / 共 {features.length} 筆。
-          點多時用圖層控制切「聚合」或「熱點」—— 上千個點疊在一起時，個別點位反而看不出哪一區最嚴重。
+          顯示 {shown.length} / 共 {features.length} 筆。 點多時用圖層控制切「聚合」或「熱點」——
+          上千個點疊在一起時，個別點位反而看不出哪一區最嚴重。
         </Typography>
       </Paper>
     </Stack>

@@ -158,7 +158,12 @@ export class SupportService {
 
   private async appendMessage(threadId: number, user: AuthUser, body: string, fromAgent: boolean) {
     const saved = await this.messageRepo.save(
-      this.messageRepo.create({ thread: { id: threadId }, sender: { id: user.uid }, body: body.trim().slice(0, 1000), fromAgent })
+      this.messageRepo.create({
+        thread: { id: threadId },
+        sender: { id: user.uid },
+        body: body.trim().slice(0, 1000),
+        fromAgent
+      })
     );
 
     // 未讀數加在「對方」那一側，並更新排序用的時間戳

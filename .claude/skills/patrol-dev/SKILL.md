@@ -9,16 +9,17 @@ description: 開發道路巡查 Demo（NestJS 微服務 + PostGIS + BullMQ + Web
 
 ## 系統地圖
 
-六個行程，各自一個容器。**分開的理由是「壞的方式不同」**，動手前先確認要改的東西屬於哪一個：
+七個行程，各自一個容器。**分開的理由是「壞的方式不同」**，動手前先確認要改的東西屬於哪一個：
 
-| 行程 | 進入點 | 職責 | 為什麼獨立 |
-|---|---|---|---|
-| `api` | `server/server.ts` | 對外 API、WebSocket、微服務事件訂閱 | 使用者等在螢幕前，要快 |
-| `tiles` | `server/tiles.ts` | 圖層(GeoJSON + Redis 快取) | 一次吐幾 MB，會佔住 event loop |
-| `worker` | `server/worker.ts` | 案件佇列(逆地理編碼) | 會逾時、要重試 |
-| `report-worker` | `server/report-worker.ts` | 報表佇列(Excel/Word) | 一份報表吃幾百 MB |
-| `scheduler` | `server/scheduler.ts` | 11 支排程 + 手動觸發事件訂閱 | 只能有一份在跑 |
-| `nginx` | — | 靜態檔、反向代理、TLS | — |
+| 行程            | 進入點                      | 職責                                | 為什麼獨立                     |
+| --------------- | --------------------------- | ----------------------------------- | ------------------------------ |
+| `api`           | `src/main/api.ts`           | 對外 API、WebSocket、微服務事件訂閱 | 使用者等在螢幕前，要快         |
+| `tiles`         | `src/main/tiles.ts`         | 圖層(GeoJSON + Redis 快取)          | 一次吐幾 MB，會佔住 event loop |
+| `case-worker`   | `src/main/case-worker.ts`   | 案件佇列(逆地理編碼)                | 會逾時、要重試                 |
+| `report-worker` | `src/main/report-worker.ts` | 報表佇列(Excel/Word)                | 一份報表吃幾百 MB              |
+| `mail-worker`   | `src/main/mail-worker.ts`   | 郵件佇列                            | SMTP 故障時會長時間重試        |
+| `scheduler`     | `src/main/scheduler.ts`     | 11 支排程 + 手動觸發事件訂閱        | 只能有一份在跑                 |
+| `nginx`         | —                           | 靜態檔、反向代理、TLS               | —                              |
 
 **只有 `api` 跑 migration**（其餘行程的 compose 設 `RUN_MIGRATIONS=false`）。多個行程同時改 schema 會互相鎖死。
 
@@ -61,12 +62,12 @@ shared **刻意沒有執行期依賴**：後端在 CommonJS 裡用它、前端�
 
 四種單據，**都是分表設計**（主表 / 狀態 / 附屬 / 照片），因為欄位的「誰在寫、什麼時候寫」不同：
 
-| 模組 | 單據 | 表 | 狀態 |
-|---|---|---|---|
-| `case-patrol` | AI 車巡案件 | `patrol_cases` + `_addresses` + `_statuses` | 三組狀態（見下） |
-| `maintenance` | 巡查單 RA／巡修單 RB | `maintenances` + `_statuses` + `_repairs` + `_images` | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工 |
-| `work-order` | 派工單 PA/PB/PC/PD | `work_orders` + `_statuses` + `_users` + `_improvements` + `_images` | -1 已刪除 / 0 待處理 / 1 施工中 / 2 已回報 / 3 已完工 |
-| `survey` | 鋪面檢測 | `survey_orders` + `survey_cases` | -1 / 0 未檢查 / 1 已檢查 |
+| 模組          | 單據                 | 表                                                                   | 狀態                                                  |
+| ------------- | -------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- |
+| `case-patrol` | AI 車巡案件          | `patrol_cases` + `_addresses` + `_statuses`                          | 三組狀態（見下）                                      |
+| `maintenance` | 巡查單 RA／巡修單 RB | `maintenances` + `_statuses` + `_repairs` + `_images`                | -1 已刪除 / 0 待確認 / 1 觀察中 / 2 已派工            |
+| `work-order`  | 派工單 PA/PB/PC/PD   | `work_orders` + `_statuses` + `_users` + `_improvements` + `_images` | -1 已刪除 / 0 待處理 / 1 施工中 / 2 已回報 / 3 已完工 |
+| `survey`      | 鋪面檢測             | `survey_orders` + `survey_cases`                                     | -1 / 0 未檢查 / 1 已檢查                              |
 
 **流程是「先發現、再派工」**：
 
@@ -106,11 +107,11 @@ AI 車巡案件 ──┐
 
 派工單與巡查單的狀態端點都收 **動作碼**（`WORK_ORDER_ACTION`）：
 
-| 送進來 | 實際寫入 | 規則 |
-|---|---|---|
-| `9` 撤回 | 退一階 | 退到待處理／施工中這一段時，改由**有沒有施工人員**決定 |
-| `8` 復原 | 歷程上一個不同的狀態 | 不能低於 workerStatus |
-| `-1` 刪除 | -1 | **已回報／已完工不允許**，要先撤回 |
+| 送進來    | 實際寫入             | 規則                                                   |
+| --------- | -------------------- | ------------------------------------------------------ |
+| `9` 撤回  | 退一階               | 退到待處理／施工中這一段時，改由**有沒有施工人員**決定 |
+| `8` 復原  | 歷程上一個不同的狀態 | 不能低於 workerStatus                                  |
+| `-1` 刪除 | -1                   | **已回報／已完工不允許**，要先撤回                     |
 
 實作在 `work-order.service.ts` 的 `resolveStatus` / `resolveRestore`，
 與 `maintenance.service.ts` 的 `restore`。
@@ -151,10 +152,10 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 
 事件走 **Redis transport**（`@nestjs/microservices`），佇列走 BullMQ。**兩者不要混用**：
 
-| | 用途 | 沒有消費者時 |
-|---|---|---|
-| 佇列 BullMQ | 要重試、要保證做完的「工作」 | 堆著等人做 |
-| 事件 Redis transport | 廣播「發生了什麼」 | 丟掉就好 |
+|                      | 用途                         | 沒有消費者時 |
+| -------------------- | ---------------------------- | ------------ |
+| 佇列 BullMQ          | 要重試、要保證做完的「工作」 | 堆著等人做   |
+| 事件 Redis transport | 廣播「發生了什麼」           | 丟掉就好     |
 
 用佇列送通知的話，沒人消費的通知會一直堆在 Redis 裡直到把記憶體吃光。
 
@@ -176,16 +177,17 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 1. 讀相關模組，找出**實際的插入點與既有命名**，不要憑印象。
 2. 判斷這次的改動落在哪一層，照下表決定作法：
 
-   | 要做的事 | 放哪裡 | 不要放哪裡 |
-   |---|---|---|
-   | 使用者等得住的查詢/寫入 | `api` 的 controller + service | 不要塞進 worker |
-   | 慢、會失敗、要重試 | BullMQ 佇列 + processor | 不要在 API 裡同步做 |
-   | 「發生了什麼」的廣播 | `CaseEventPublisher` | 不要用佇列送通知 |
-   | 定時要做的事 | `task-definitions.ts` + `task.service.ts` | 不要用 setInterval |
-   | 依請求內容而不同的權限 | `@RequireActionByField` | 不要拆成四支端點 |
-   | 前端的判斷/換算/配色 | `presenters/` | 不要寫在元件裡 |
-   | 新的地圖圖層 | 面板登錄 + `MapCanvas` 畫法 | 不要另開一張地圖 |
-   | 前端下拉選單的選項 | 後端 `core/code` 代碼表 | 不要在前端寫死中文對照 |
+   | 要做的事                | 放哪裡                                    | 不要放哪裡                 |
+   | ----------------------- | ----------------------------------------- | -------------------------- |
+   | 使用者等得住的查詢/寫入 | `api` 的 controller + service             | 不要塞進 worker            |
+   | 慢、會失敗、要重試      | BullMQ 佇列 + processor                   | 不要在 API 裡同步做        |
+   | 「發生了什麼」的廣播    | `CaseEventPublisher`                      | 不要用佇列送通知           |
+   | 成本隨資料量成長的聚合  | `redisService.remember()`                 | 不要快取本來就很快的小查詢 |
+   | 定時要做的事            | `task-definitions.ts` + `task.service.ts` | 不要用 setInterval         |
+   | 依請求內容而不同的權限  | `@RequireActionByField`                   | 不要拆成四支端點           |
+   | 前端的判斷/換算/配色    | `presenters/`                             | 不要寫在元件裡             |
+   | 新的地圖圖層            | 面板登錄 + `MapCanvas` 畫法               | 不要另開一張地圖           |
+   | 前端下拉選單的選項      | 後端 `core/code` 代碼表                   | 不要在前端寫死中文對照     |
 
 3. 動到資料表就要寫 migration（見下節），**不可改既有的 migration 檔**。
 4. 跑基準檢查，記下**修改前就存在**的問題：
@@ -217,9 +219,19 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 - 跨模組用別人的 service 時，模組要 `imports` 對方的 module ——
   只在 `forFeature` 列了對方的 entity 是不夠的，Nest 會在啟動時丟
   `Nest can't resolve dependencies`。
+- **案件編號一律用 `caseEncodeService`**，不要自己寫取號邏輯。
+  它靠單一敘述的 `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` 保證併發安全；
+  `SELECT MAX + 1` 再寫入的作法在 200 併發下只有 1 筆會成功（`yarn seq:stress` 可重現）。
 - **批次端點不要在迴圈裡逐筆做事**：50 筆的批次若逐筆寫歷程，就是 50 個交易、
   350 趟往返。快照用一次 `IN` 撈完、版本號用一次 `GROUP BY` 算完、
   歷程用一次 INSERT 寫完（`caseHistoryService.recordMany`）。
+- **快取只加在成本隨資料量成長的地方**。代碼表已經是純記憶體運算（0 筆查詢），
+  放 Redis 反而多一趟網路；小表加索引的查詢省不到什麼，卻多一處要失效。
+  該快取的是聚合：標案統計與行政區凸包在 9 萬筆案件時各要 15 ms 與 110 ms。
+- **快取失效不能讓功能失效**。`remember()` 在 Redis 不可用時回退到即時計算，
+  但這需要連線設 `enableOfflineQueue: false` —— 預設值會讓命令無限期排隊，
+  於是 Redis 掛掉時請求是**卡住**而不是失敗，連 try/catch 都等不到。
+  BullMQ 不共用這條連線：佇列要無限重試，應用層要快速失敗。
 - **篩選要在 SQL 裡做，不要取回來再用 JS 過濾**：分頁之後才過濾的話，
   `TOTAL` 是篩選前的數字，而一頁 50 筆會回傳不到 50 筆 ——
   使用者看到「共 433 筆」卻怎麼翻都翻不完。
@@ -249,6 +261,10 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
   自訂選單時沿用它，不要再寫一個 `<Select>`。
 - 查詢條件定義集中在 `config/queryFields.js` —— 同一組案件條件同時出現在案件列表與地圖的破壞查詢面板，
   兩邊各寫一份的話，地圖查得到的案件在列表查不到。
+- **面板加欄位時，後端 DTO 要同步**。DTO 開了 `forbidNonWhitelisted`，
+  多出來的欄位會讓整個請求回 400，而畫面上只顯示「參數錯誤」。
+  加進 DTO 之後還要**真的實作查詢條件** —— 只加 DTO 的話條件會被安靜忽略，
+  比 400 更難發現。`e2e/specs/query-fields.spec.ts` 同時驗這兩件事。
 - 導覽與按鈕依 `can('X.Y')` 顯示 —— 看得到卻按了就 403 是最糟的介面。
 - 大型套件（地圖、圖表）用 `lazy()` 延後載入，並維持 `vite.config.mts` 的 `manualChunks` 分包。
 
@@ -332,7 +348,7 @@ yarn seed                      # 建表 + 示範資料(可重複執行)
 yarn start                     # 六個行程一起跑(前端 3005)
 ```
 
-單獨啟動某個行程：`yarn api` / `yarn tiles` / `yarn worker` / `yarn report-worker` / `yarn scheduler`。
+單獨啟動某個行程：`yarn api` / `yarn tiles` / `yarn case-worker` / `yarn report-worker` / `yarn mail-worker` / `yarn scheduler`。
 **除 `yarn api` 外都要帶 `RUN_MIGRATIONS=false`。**
 
 改到 `packages/shared` 時要重建它（`yarn build:shared`）——
@@ -349,12 +365,12 @@ bash clean.sh                  # 停止(保留資料)
 
 ### 對外入口
 
-| 服務 | 網址 |
-|---|---|
-| 前端 | http://localhost:18080 |
-| API 文件 | http://localhost:13008/api-docs |
-| Grafana 日誌 | http://localhost:13000 |
-| MinIO 主控台 | http://localhost:19001 |
+| 服務         | 網址                            |
+| ------------ | ------------------------------- |
+| 前端         | http://localhost:18080          |
+| API 文件     | http://localhost:13008/api-docs |
+| Grafana 日誌 | http://localhost:13000          |
+| MinIO 主控台 | http://localhost:19001          |
 
 **埠號刻意避開 web_server 專案**（那套佔用 80/443/5432/6379/9000）。改埠號時兩邊都要確認。
 
@@ -415,11 +431,11 @@ bash scripts/pack-offline.sh [版本號]
 
 ## CI/CD
 
-| 檔案 | 觸發 | 做什麼 |
-|---|---|---|
-| `.github/workflows/ci.yml` | push / PR | 型別 → 單元測試 → 端到端 → 映像檔建置 |
+| 檔案                                    | 觸發            | 做什麼                                               |
+| --------------------------------------- | --------------- | ---------------------------------------------------- |
+| `.github/workflows/ci.yml`              | push / PR       | 型別 → 單元測試 → 端到端 → 映像檔建置                |
 | `.github/workflows/release-offline.yml` | tag `v*` / 手動 | 驗證(含**混淆後啟動測試**) → 產離線包 → 附到 Release |
-| `.github/workflows/deploy.yml` | tag `v*` / 手動 | 建置推送映像 → SSH 部署 → 健康檢查失敗自動回滾 |
+| `.github/workflows/deploy.yml`          | tag `v*` / 手動 | 建置推送映像 → SSH 部署 → 健康檢查失敗自動回滾       |
 
 分成多個 job 而不是一支長腳本，是為了讓失敗訊息直接指出「哪一層壞了」——
 型別錯誤與 E2E 失敗需要的處理方式完全不同。
@@ -431,30 +447,38 @@ bash scripts/pack-offline.sh [版本號]
 
 ## 排錯
 
-| 症狀 | 原因 |
-|---|---|
-| `Entity metadata for X#y was not found` | 新實體沒加進 `ALL_ENTITIES` |
-| `Nest can't resolve dependencies of the XService` | 用了別的模組的 service，但模組沒 `imports` 對方的 module |
-| `Custom Id cannot contain :` | BullMQ 的 `jobId` 用了冒號 |
-| `Cannot read properties of undefined (reading 'databaseName')` | 分頁查詢的 `orderBy` 用了欄位名，要改成屬性名 |
-| `res.status is not a function` | 例外過濾器沒有排除 RPC 情境（`host.getType() !== 'http'`）|
-| 登入回「帳號或密碼錯誤」但密碼是對的 | 連續失敗 5 次已鎖定 15 分鐘，`docker exec patrol-redis redis-cli del 'login:lock:DEMO:admin'` |
-| 排程狀態是空的 | `scheduler` 行程沒起來（狀態由它寫進 Redis，api 只負責讀）|
-| WebSocket 連得上但收不到推播 | 全域守衛沒排除非 HTTP 情境；或頻道沒加進 `WS_CHANNEL` |
-| 向量圖磚永遠是空的 | 幾何沒轉到 3857，或舊的空圖磚還在 Redis 快取裡 |
-| 安全表頭在網頁上沒出現、靜態檔卻有 | nginx 的 `add_header` 是**取代**不是累加 —— 子 location 只要自己寫了一個，父層的全部會被丟掉。凡是有自己 add_header 的 location 都要再 include `security-headers.inc` |
-| 走備援 port 時簽名網址／重導向指回錯的 port | proxy 用了 `$host`（會吃掉 port），要改 `$http_host` |
-| 前端資料抓兩遍 | 元件被渲染兩次（用 `useMediaQuery` 決定位置，不要用 CSS 顯示兩份）|
-| 版本比較回 404 | 該版本的歷程沒有 `snapshot`（直接用 repository 寫入的歷程會這樣）|
-| **復原後回到了初始狀態而不是刪除前的狀態** | 中間某次狀態變動沒寫歷程 —— 通常是別的模組改的 |
-| **一張沒有施工人員的單卻是「施工中」** | 撤回／復原沒有走 workerStatus 的下限 |
-| 對話框翻頁按了不動 | 索引用了外部傳入的初始 id，要用內部的「目前這筆」|
-| 勾選框一按就打開詳情 | 可點擊的列裡的控制項要 `stopPropagation` |
-| Playwright strict mode violation | 說明文字也含同樣字串，用 `exact: true`、role 或 `.first()` |
-| 混淆後啟動就掛 | 混淆設定動到了類別名稱，或關掉了 `reservedNames` |
-| 前端建置說 shared 沒有匯出某個名稱 | 只建了 CJS —— Rollup 看不穿 CJS 的 `export *`，要一併建 ESM |
-| 改了共用常數但畫面沒變 | `packages/shared` 沒重建（`yarn build:shared`）|
-| 篩選後的 `TOTAL` 跟實際筆數對不上 | 篩選寫在分頁之後的 JS 裡，要推進 SQL |
+| 症狀                                                           | 原因                                                                                                                                                                  |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Entity metadata for X#y was not found`                        | 新實體沒加進 `ALL_ENTITIES`                                                                                                                                           |
+| `Nest can't resolve dependencies of the XService`              | 用了別的模組的 service，但模組沒 `imports` 對方的 module                                                                                                              |
+| `Custom Id cannot contain :`                                   | BullMQ 的 `jobId` 用了冒號                                                                                                                                            |
+| `Cannot read properties of undefined (reading 'databaseName')` | 分頁查詢的 `orderBy` 用了欄位名，要改成屬性名                                                                                                                         |
+| `res.status is not a function`                                 | 例外過濾器沒有排除 RPC 情境（`host.getType() !== 'http'`）                                                                                                            |
+| 登入回「帳號或密碼錯誤」但密碼是對的                           | 連續失敗 5 次已鎖定 15 分鐘，`docker exec patrol-redis redis-cli del 'login:lock:DEMO:admin'`                                                                         |
+| 排程狀態是空的                                                 | `scheduler` 行程沒起來（狀態由它寫進 Redis，api 只負責讀）                                                                                                            |
+| WebSocket 連得上但收不到推播                                   | 全域守衛沒排除非 HTTP 情境；或頻道沒加進 `WS_CHANNEL`                                                                                                                 |
+| 向量圖磚永遠是空的                                             | 幾何沒轉到 3857，或舊的空圖磚還在 Redis 快取裡                                                                                                                        |
+| 安全表頭在網頁上沒出現、靜態檔卻有                             | nginx 的 `add_header` 是**取代**不是累加 —— 子 location 只要自己寫了一個，父層的全部會被丟掉。凡是有自己 add_header 的 location 都要再 include `security-headers.inc` |
+| 走備援 port 時簽名網址／重導向指回錯的 port                    | proxy 用了 `$host`（會吃掉 port），要改 `$http_host`                                                                                                                  |
+| 前端資料抓兩遍                                                 | 元件被渲染兩次（用 `useMediaQuery` 決定位置，不要用 CSS 顯示兩份）                                                                                                    |
+| 版本比較回 404                                                 | 該版本的歷程沒有 `snapshot`（直接用 repository 寫入的歷程會這樣）                                                                                                     |
+| **復原後回到了初始狀態而不是刪除前的狀態**                     | 中間某次狀態變動沒寫歷程 —— 通常是別的模組改的                                                                                                                        |
+| **一張沒有施工人員的單卻是「施工中」**                         | 撤回／復原沒有走 workerStatus 的下限                                                                                                                                  |
+| 對話框翻頁按了不動                                             | 索引用了外部傳入的初始 id，要用內部的「目前這筆」                                                                                                                     |
+| 勾選框一按就打開詳情                                           | 可點擊的列裡的控制項要 `stopPropagation`                                                                                                                              |
+| Playwright strict mode violation                               | 說明文字也含同樣字串，用 `exact: true`、role 或 `.first()`                                                                                                            |
+| 混淆後啟動就掛                                                 | 混淆設定動到了類別名稱，或關掉了 `reservedNames`                                                                                                                      |
+| 前端建置說 shared 沒有匯出某個名稱                             | 只建了 CJS —— Rollup 看不穿 CJS 的 `export *`，要一併建 ESM                                                                                                           |
+| 改了共用常數但畫面沒變                                         | `packages/shared` 沒重建（`yarn build:shared`）                                                                                                                       |
+| 篩選後的 `TOTAL` 跟實際筆數對不上                              | 篩選寫在分頁之後的 JS 裡，要推進 SQL                                                                                                                                  |
+| `property XXX should not exist`                                | 查詢面板送了 DTO 沒有的欄位，兩邊要同步                                                                                                                               |
+| 篩選條件設了卻沒作用                                           | DTO 收了但服務沒實作，條件被安靜忽略                                                                                                                                  |
+| 併發建單時大量 duplicate key                                   | 沒有走 `caseEncodeService`，自己用 MAX+1 取號                                                                                                                         |
+| 郵件永遠停在 PENDING                                           | `mail-worker` 行程沒起來                                                                                                                                              |
+| Redis 掛掉時請求整個卡住而不是報錯                             | 連線用了預設的離線佇列，命令會無限期排隊                                                                                                                              |
+| 剛改完標案但列表沒更新                                         | 寫入路徑漏了 `delByPrefix(PROJECT_CACHE_PREFIX)`                                                                                                                      |
+| `yarn start` 說 EADDRINUSE                                     | 前一次的行程還在，`kill -TERM -<pgid>` 收掉整棵樹                                                                                                                     |
+| 逆地理編碼回傳的路名不像真的                                   | 該座標 150 公尺內沒有門牌，退回了合成路名                                                                                                                             |
 
 ---
 

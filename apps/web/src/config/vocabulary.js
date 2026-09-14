@@ -49,7 +49,8 @@ const CSS_VAR = {
   error: 'var(--c-error)'
 };
 
-const cssColorsOf = (defs) => Object.fromEntries(Object.entries(colorsOf(defs)).map(([k, v]) => [k, CSS_VAR[v] ?? CSS_VAR.neutral]));
+const cssColorsOf = (defs) =>
+  Object.fromEntries(Object.entries(colorsOf(defs)).map(([k, v]) => [k, CSS_VAR[v] ?? CSS_VAR.neutral]));
 
 /** 以 key 為代碼的定義，顏色寫在定義裡（車輛、養護等級） */
 const cssColorsByKey = (defs) => Object.fromEntries(defs.map((d) => [d.key, CSS_VAR[d.color] ?? CSS_VAR.neutral]));

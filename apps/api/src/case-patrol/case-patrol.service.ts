@@ -11,13 +11,15 @@ import { GeoService } from '@/geo/geo.service';
 import { CaseIngestProducer } from '@/queue/case-ingest.producer';
 import { StorageService } from '@/storage/storage.service';
 import { CaseHistoryService } from '@/case-history/case-history.service';
-import { CRACK_TYPE_DEF } from '@road-patrol/shared';
-import type { AuthUser } from '@app-types/user-auth.type';
+import { CaseEncodeService } from '@/case-encode/case-encode.service';
+import { CRACK_TYPE_DEF, normalizeCrackType } from '@road-patrol/shared';
+import { userRef, type AuthUser } from '@app-types/user-auth.type';
 import {
   AddCaseDto,
   BatchUpdateStatusDto,
   CaseQueryDto,
   CaseStatsQueryDto,
+  MileageQueryDto,
   NearbyQueryDto,
   UpdateCaseDto,
   UpdateCaseStatusDto
@@ -26,6 +28,27 @@ import {
 /** 重複判定的門檻：30 公尺內、前後 30 天、同一種破壞 */
 const DUPLICATE_RADIUS_M = 30;
 const DUPLICATE_WINDOW_DAYS = 30;
+
+/**
+ * 連續破壞警示的判定門檻。
+ *
+ * 相鄰兩筆距離不超過 10 公尺、且序號連號或同號，才算同一段連續破壞。
+ * 中間夾雜其他破壞類型不會中斷序列 —— 車機是照拍攝順序編號的，
+ * 一段龜裂的路面上本來就會混著坑洞。
+ */
+const ALLIGATOR_GAP_M = 10;
+const ALLIGATOR_MIN_GROUP = 2;
+
+/**
+ * GPS 校正的位移量(度)。
+ *
+ * 車機的天線裝在車頂，回報的座標是**車輛的位置**而不是破壞的位置 ——
+ * 破壞在鏡頭正前方約 5 公尺處。0.00004 度約等於 4.4 公尺。
+ *
+ * 不校正的話，地圖上的點會系統性地偏在道路後方，
+ * 派工人員到現場會找不到那個坑。
+ */
+const GPS_FORWARD_OFFSET_DEG = 0.00004;
 
 @Injectable()
 export class CasePatrolService {
@@ -41,6 +64,7 @@ export class CasePatrolService {
     private readonly caseIngestProducer: CaseIngestProducer,
     private readonly storageService: StorageService,
     private readonly caseHistoryService: CaseHistoryService,
+    private readonly caseEncodeService: CaseEncodeService,
     private readonly dataSource: DataSource
   ) {}
 
@@ -63,6 +87,25 @@ export class CasePatrolService {
       return HttpResponse.success({ message: '案件已存在(重複遞送)', data: { ID: before.id, DUPLICATED: true } });
     }
 
+    /**
+     * 破壞類型正規化。
+     *
+     * 不同世代的車機與不同縣市的判讀模型送來的字串不一樣：
+     * 舊車機送 `pothole`、有的送中文、臺北格式送 `Manhole`。
+     * 不轉的話，同一種破壞在統計上會被拆成三種，而報表要交給業主。
+     *
+     * DTO 已經用 `@IsIn` 擋掉不認得的值，這裡處理的是「認得但寫法不同」。
+     */
+    const crackType = normalizeCrackType(dto.CRACK_TYPE);
+
+    /**
+     * GPS 校正：把座標往行進方向推 5 公尺。
+     *
+     * 車機的天線在車頂，回報的是車輛位置；破壞在鏡頭正前方。
+     * 沒有方位角時不校正 —— 猜方向比不校正更糟。
+     */
+    const { lng, lat } = this.adjustCoords(dto.LNG, dto.LAT, dto.HEADING);
+
     // 標案與車輛：車機只帶代碼與車號，要換成關聯
     const project = await this.projectRepo.findOne({ where: { prjId: dto.PRJ_ID } });
     const projectVehicle = project
@@ -75,6 +118,16 @@ export class CasePatrolService {
     const saved = await this.dataSource.transaction(async (manager) => {
       const caseRepo = manager.getRepository(PatrolCase);
 
+      // 進來就編號。
+      //
+      // 過去這裡不編號，案件的 case_num 一路是 NULL，畫面上只能顯示車機給的
+      // 外部編號，而報表與公文要的是我們自己的編號 —— 那筆案件在對帳時對不到。
+      //
+      // 取號在交易裡：號碼與案件一起成敗，寫入失敗不會留下一個被跳過的號。
+      // 車巡案件的編號不分日期（一個標案一條連續的流水），所以 seqDate 固定。
+      // 車巡案件不分日期：一天可能進來幾千筆，分日之後四位流水很快就不夠用
+      const caseNum = project ? await this.caseEncodeService.next({ prefix: project.prjId, pad: 6 }, manager) : null;
+
       await caseRepo
         .createQueryBuilder()
         .insert()
@@ -82,13 +135,15 @@ export class CasePatrolService {
         .values({
           company: { id: user.companyId },
           project: project ? { id: project.id } : undefined,
-          reporter: { id: user.uid },
+          // 車機用 API Key 上傳時沒有對應的使用者列，回報人留空
+          reporter: userRef(user.uid),
+          caseNum: caseNum ?? undefined,
           externalId: dto.EXTERNAL_ID,
           source: (dto.SOURCE ?? 'VEHICLE') as CaseSource,
           dtRecord: dto.DT_RECORD,
           car: dto.CAR,
           vehicle: projectVehicle?.vehicle ? { id: projectVehicle.vehicle.id } : undefined,
-          crackType: dto.CRACK_TYPE,
+          crackType,
           degree: dto.DEGREE,
           crackId: dto.CRACK_ID ?? 0,
           length: dto.LENGTH,
@@ -98,10 +153,15 @@ export class CasePatrolService {
           img: dto.IMG,
           imgDetect: dto.IMG_DETECT,
           imgMapArea: dto.IMG_MAP_AREA,
-          longitude: dto.LNG,
-          latitude: dto.LAT,
+          longitude: lng,
+          latitude: lat,
           altitude: dto.ALTITUDE,
-          geom: { type: 'Point', coordinates: [dto.LNG, dto.LAT] },
+          heading: dto.HEADING,
+          // 原始座標留著：校正的假設(天線在車頂、破壞在正前方 5 公尺)
+          // 不見得每種車機都成立，出事時要回得去
+          rawLongitude: dto.LNG,
+          rawLatitude: dto.LAT,
+          geom: { type: 'Point', coordinates: [lng, lat] },
           serialNo: dto.SERIAL_NO,
           path: dto.PATH,
           remark: dto.REMARK
@@ -112,10 +172,16 @@ export class CasePatrolService {
       const row = await caseRepo.findOneOrFail({ where: { externalId: dto.EXTERNAL_ID } });
 
       // 狀態與地址同時建立：缺了狀態的案件在二篩畫面上會神祕地消失
-      await manager.getRepository(PatrolCaseStatus).save(
-        manager.getRepository(PatrolCaseStatus).create({ patrolCase: { id: row.id }, status: 0, edited: 0, needRepair: 0 })
-      );
-      await manager.getRepository(PatrolCaseAddress).save(manager.getRepository(PatrolCaseAddress).create({ patrolCase: { id: row.id } }));
+      await manager
+        .getRepository(PatrolCaseStatus)
+        .save(
+          manager
+            .getRepository(PatrolCaseStatus)
+            .create({ patrolCase: { id: row.id }, status: 0, edited: 0, needRepair: 0 })
+        );
+      await manager
+        .getRepository(PatrolCaseAddress)
+        .save(manager.getRepository(PatrolCaseAddress).create({ patrolCase: { id: row.id } }));
 
       return row;
     });
@@ -127,12 +193,20 @@ export class CasePatrolService {
       snapshot: this.toSnapshot(saved),
       operatorId: user.uid,
       source: 'DEVICE',
+      note: user.uid ? undefined : `由 ${user.account} 上傳`,
       clientIp
     });
 
     // 慢的活丟給 worker：逆地理編碼、案件編碼，都不該卡住車機的回應
     await this.caseIngestProducer.dispatch(
-      { caseId: saved.id, externalId: saved.externalId, companyId: user.companyId, lng: dto.LNG, lat: dto.LAT, photoKey: saved.img },
+      {
+        caseId: saved.id,
+        externalId: saved.externalId,
+        companyId: user.companyId,
+        lng,
+        lat,
+        photoKey: saved.img
+      },
       { crackType: saved.crackType, detectedAt: saved.dtRecord.toISOString() }
     );
 
@@ -234,9 +308,7 @@ export class CasePatrolService {
         ADDRESS: c.address?.address ?? null,
         NEED_REPAIR: c.status?.needRepair ?? 0,
         // 距離直接算好回去：前端要顯示「30 公尺外」，自己用座標算會有投影誤差
-        DISTANCE_M: Math.round(
-          this.haversine(target.longitude, target.latitude, c.longitude, c.latitude)
-        )
+        DISTANCE_M: Math.round(this.haversine(target.longitude, target.latitude, c.longitude, c.latitude))
       })),
       warnMsg: '沒有可能重複的案件'
     });
@@ -298,11 +370,17 @@ export class CasePatrolService {
       const statusRepo = manager.getRepository(PatrolCaseStatus);
       const status = await statusRepo.findOne({ where: { patrolCase: { id: dto.ID } } });
       if (status) {
-        await statusRepo.update({ id: status.id }, { edited: 1, updEditedUsr: { id: user.uid } as never, updEditedAt: new Date() });
+        await statusRepo.update(
+          { id: status.id },
+          { edited: 1, updEditedUsr: { id: user.uid } as never, updEditedAt: new Date() }
+        );
       }
     });
 
-    const after = await this.caseRepo.findOne({ where: { id: dto.ID }, relations: { address: true, status: true, project: true } });
+    const after = await this.caseRepo.findOne({
+      where: { id: dto.ID },
+      relations: { address: true, status: true, project: true }
+    });
 
     await this.caseHistoryService.record({
       caseType: 'CASE_PATROL',
@@ -361,7 +439,10 @@ export class CasePatrolService {
     if (existing) await statusRepo.update({ id: existing.id }, patch as never);
     else await statusRepo.save(statusRepo.create({ patrolCase: { id: dto.ID }, ...patch } as never));
 
-    const after = await this.caseRepo.findOne({ where: { id: dto.ID }, relations: { status: true, address: true, project: true } });
+    const after = await this.caseRepo.findOne({
+      where: { id: dto.ID },
+      relations: { status: true, address: true, project: true }
+    });
 
     await this.caseHistoryService.record({
       caseType: 'CASE_PATROL',
@@ -534,9 +615,12 @@ export class CasePatrolService {
     if (dto.HAS_IMAGE) qb.andWhere('c.img IS NOT NULL');
 
     if (dto.KEYWORD) {
-      qb.andWhere('(addr.road ILIKE :kw OR addr.address ILIKE :kw OR c.remark ILIKE :kw OR c.case_num ILIKE :kw OR c.external_id ILIKE :kw)', {
-        kw: `%${dto.KEYWORD}%`
-      });
+      qb.andWhere(
+        '(addr.road ILIKE :kw OR addr.address ILIKE :kw OR c.remark ILIKE :kw OR c.case_num ILIKE :kw OR c.external_id ILIKE :kw)',
+        {
+          kw: `%${dto.KEYWORD}%`
+        }
+      );
     }
 
     return qb;
@@ -651,4 +735,247 @@ export class CasePatrolService {
       UPDATED_AT: c.updatedAt
     };
   }
+  /**
+   * GPS 座標校正。
+   *
+   * 把座標沿著行進方向推 5 公尺 —— 車機的天線在車頂，回報的是車輛位置，
+   * 而破壞在鏡頭正前方。不校正的話，地圖上的點會系統性地偏在道路後方，
+   * 派工人員到現場會找不到那個坑。
+   *
+   * **沒有方位角就不校正**：猜方向比不校正更糟，往反方向推 5 公尺
+   * 等於把誤差放大成 10 公尺。
+   *
+   * 經度的每一度在不同緯度上代表的距離不同，所以要除以 cos(緯度)；
+   * 台灣在北緯 24 度附近，忽略這一項會有大約一成的誤差。
+   */
+  private adjustCoords(lng: number, lat: number, heading?: number): { lng: number; lat: number } {
+    if (heading === undefined || heading === null) return { lng, lat };
+
+    const rad = (heading * Math.PI) / 180;
+    const dLat = GPS_FORWARD_OFFSET_DEG * Math.cos(rad);
+    const dLng = (GPS_FORWARD_OFFSET_DEG * Math.sin(rad)) / Math.max(0.1, Math.cos((lat * Math.PI) / 180));
+
+    return { lng: Number((lng + dLng).toFixed(7)), lat: Number((lat + dLat).toFixed(7)) };
+  }
+
+  /**
+   * 依案件編號查詢單筆。
+   *
+   * 業主與公文用的是案件編號而不是 id ——「DEMO01000123 這件修好了沒有」
+   * 是最常被問的一句話，而承辦手上只有那個編號。
+   */
+  public async getByCaseNum(caseNum: string, companyId: number): Promise<HttpResult> {
+    const row = await this.caseRepo.findOne({
+      where: [
+        { caseNum, company: { id: companyId } },
+        // 編碼失敗或還沒編號的案件只有外部編號，兩者都要查得到
+        { externalId: caseNum, company: { id: companyId } }
+      ],
+      relations: {
+        address: true,
+        status: { updStatusUsr: true, updStatusAdm: true, updEditedUsr: true, updNeedRepairUsr: true },
+        reporter: true,
+        vehicle: true,
+        project: true
+      }
+    });
+    if (!row) throw new NotFoundException(`找不到案件編號：${caseNum}`);
+
+    return HttpResponse.success({ data: (await this.withImageUrls([this.toRow(row, true)]))[0] });
+  }
+
+  /**
+   * 連續鱷魚狀裂縫警示。
+   *
+   * 單獨一處龜裂是局部修補，但**連續一整段**代表路基已經失效 ——
+   * 那要整段刨鋪，而且是預算等級不同的工程。這個差別在逐筆的清單上看不出來，
+   * 承辦要一件一件對座標才會發現。
+   *
+   * 判定：同一輛車、相鄰兩筆距離不超過 10 公尺、序號連號或同號。
+   * **必須先依車輛分組再掃描** —— 不同車輛的紀錄依時間交錯排列，
+   * 混在一起會把兩台車在不同路段的破壞誤判成一段連續破壞。
+   *
+   * 中間夾雜其他破壞類型不會中斷序列，只是不列入群組：
+   * 一段龜裂的路面上本來就會混著坑洞。
+   */
+  public async getAlligatorWarnings(dto: CaseQueryDto, companyId: number): Promise<HttpResult> {
+    const rows = await this.buildQuery(dto, companyId)
+      .select('c.id', 'id')
+      .addSelect('COALESCE(c.case_num, c.external_id)', 'caseNum')
+      .addSelect('c.crack_type', 'crackType')
+      .addSelect('c.degree', 'degree')
+      .addSelect('c.car', 'car')
+      .addSelect('c.serial_no', 'serialNo')
+      .addSelect('c.dt_record', 'dtRecord')
+      .addSelect('c.longitude', 'lng')
+      .addSelect('c.latitude', 'lat')
+      .addSelect('c.area', 'area')
+      .addSelect('addr.road', 'road')
+      .addSelect('addr.district', 'district')
+      .orderBy('c.car', 'ASC')
+      .addOrderBy('c.dt_record', 'ASC')
+      .limit(20000)
+      .getRawMany<{
+        id: number;
+        caseNum: string;
+        crackType: string;
+        degree: string;
+        car: string | null;
+        serialNo: number | null;
+        dtRecord: Date;
+        lng: number;
+        lat: number;
+        area: number;
+        road: string | null;
+        district: string | null;
+      }>();
+
+    const groups = this.detectAlligatorGroups(rows);
+
+    return HttpResponse.successOrWarn({
+      data: groups.map((g, i) => ({
+        GROUP_NO: i + 1,
+        CAR: g[0].car,
+        DISTRICT: g[0].district,
+        ROAD: g[0].road,
+        COUNT: g.length,
+        TOTAL_AREA: Number(g.reduce((s, r) => s + Number(r.area), 0).toFixed(2)),
+        // 群組的長度用頭尾距離：整段刨鋪的估價要的是這個數字
+        SPAN_M: Math.round(this.haversine(g[0].lng, g[0].lat, g[g.length - 1].lng, g[g.length - 1].lat)),
+        START_AT: g[0].dtRecord,
+        END_AT: g[g.length - 1].dtRecord,
+        CASES: g.map((r) => ({ ID: r.id, CASE_NUM: r.caseNum, DEGREE: r.degree, LNG: r.lng, LAT: r.lat }))
+      })),
+      warnMsg: '這個範圍沒有連續的鱷魚狀裂縫'
+    });
+  }
+
+  /**
+   * 掃出連續群組。
+   *
+   * @param rows 已依「車輛、時間」排序的案件
+   */
+  private detectAlligatorGroups<
+    T extends { crackType: string; car: string | null; serialNo: number | null; lng: number; lat: number }
+  >(rows: T[]): T[][] {
+    const groups: T[][] = [];
+
+    // 依車輛分組：不同車輛的紀錄依時間交錯，混在一起會誤判
+    const byCar = new Map<string, T[]>();
+    for (const row of rows) {
+      const key = row.car ?? '(未指定)';
+      byCar.set(key, [...(byCar.get(key) ?? []), row]);
+    }
+
+    for (const list of byCar.values()) {
+      let current: T[] = [];
+      let lastAlligator: T | null = null;
+
+      for (const row of list) {
+        if (row.crackType !== 'Alligator_Cracking') continue; // 夾雜其他類型不中斷序列
+
+        const near = lastAlligator && this.haversine(lastAlligator.lng, lastAlligator.lat, row.lng, row.lat) <= ALLIGATOR_GAP_M;
+        // 序號連號或同號：同一張影像上的多處龜裂會共用一個序號
+        const sequential =
+          lastAlligator &&
+          row.serialNo !== null &&
+          lastAlligator.serialNo !== null &&
+          row.serialNo - lastAlligator.serialNo <= 1;
+
+        if (near && sequential) {
+          current.push(row);
+        } else {
+          if (current.length >= ALLIGATOR_MIN_GROUP) groups.push(current);
+          current = [row];
+        }
+
+        lastAlligator = row;
+      }
+
+      if (current.length >= ALLIGATOR_MIN_GROUP) groups.push(current);
+    }
+
+    return groups.sort((a, b) => b.length - a.length);
+  }
+
+  /**
+   * 巡查里程統計。
+   *
+   * 依 (日期, 標案, 縣市, 行政區) 拆開 —— 請款是按行政區結算的，
+   * 一台車一天跑過三個區，那一天的里程要分成三筆。
+   *
+   * 演算法：依 `is_trip_start` 分段，跟上一筆原始點距離 **大於 5 公尺才計入** ——
+   * 車子停在紅燈前的那兩分鐘會產生二十幾個幾乎重疊的點，
+   * 不濾掉的話 GPS 的原地跳動會被算成里程。
+   */
+  public async getMileage(dto: MileageQueryDto, companyId: number): Promise<HttpResult> {
+    const rows = await this.caseRepo.query(
+      `
+      WITH ordered AS (
+        SELECT t.vehicle_id,
+               t.project_id,
+               t.recorded_at,
+               t.geom::geometry AS geom,
+               t.is_trip_start,
+               LAG(t.geom::geometry) OVER (PARTITION BY t.vehicle_id ORDER BY t.recorded_at) AS prev_geom,
+               LAG(t.is_trip_start) OVER (PARTITION BY t.vehicle_id ORDER BY t.recorded_at) AS prev_start
+          FROM vehicle_tracks t
+         WHERE t.company_id = $1
+           AND t.recorded_at >= $2 AND t.recorded_at < $3
+           AND ($4::int IS NULL OR t.vehicle_id = $4)
+      ),
+      legs AS (
+        SELECT o.vehicle_id,
+               o.project_id,
+               date_trunc('day', o.recorded_at) AS day,
+               ST_Distance(o.geom::geography, o.prev_geom::geography) AS seg_m,
+               o.geom
+          FROM ordered o
+         WHERE o.prev_geom IS NOT NULL
+           -- 一趟行程的起點不接續上一趟：中間那段是回廠的路，不是巡查里程
+           AND o.is_trip_start = false
+           AND ST_Distance(o.geom::geography, o.prev_geom::geography) > 5
+      )
+      SELECT to_char(l.day, 'YYYY-MM-DD')                              AS "DAY",
+             v.plate_no                                                AS "CAR",
+             COALESCE(p.prj_id, '未歸屬')                              AS "PRJ_ID",
+             COALESCE(a.county, '未定位')                              AS "COUNTY",
+             COALESCE(a.district, '未分區')                            AS "DISTRICT",
+             ROUND((SUM(l.seg_m) / 1000)::numeric, 2)::float8          AS "KM",
+             COUNT(*)::int                                             AS "SEGMENTS"
+        FROM legs l
+        JOIN vehicles v ON v.id = l.vehicle_id
+        LEFT JOIN projects p ON p.id = l.project_id
+        -- 行政區由最近的案件地址推得：軌跡點本身沒有行政區，
+        -- 而為了幾千個點各做一次逆地理編碼並不划算
+        LEFT JOIN LATERAL (
+          SELECT ad.county, ad.district
+            FROM patrol_cases c
+            JOIN patrol_case_addresses ad ON ad.case_id = c.id
+           WHERE c.company_id = $1 AND ad.district IS NOT NULL
+           ORDER BY c.geom <-> l.geom::geography
+           LIMIT 1
+        ) a ON true
+       GROUP BY l.day, v.plate_no, p.prj_id, a.county, a.district
+       ORDER BY "DAY" DESC, "CAR", "DISTRICT"
+      `,
+      [
+        companyId,
+        new Date(dto.DATE_START),
+        new Date(new Date(dto.DATE_END).getTime() + 86400000),
+        dto.VEHICLE_ID ?? null
+      ]
+    );
+
+    return HttpResponse.successOrWarn({
+      data: {
+        ROWS: rows,
+        TOTAL_KM: Number(rows.reduce((s: number, r: { KM: number }) => s + Number(r.KM), 0).toFixed(2)),
+        DAYS: new Set(rows.map((r: { DAY: string }) => r.DAY)).size
+      },
+      isEmpty: (v) => !v?.ROWS?.length,
+      warnMsg: '這個區間沒有軌跡'
+    });
+  }
+
 }

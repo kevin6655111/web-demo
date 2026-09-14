@@ -4,12 +4,12 @@
 
 Yarn workspaces，四個套件：
 
-| 套件 | 位置 | 是什麼 |
-|---|---|---|
-| `@road-patrol/web` | `apps/web` | 前端（Vite + React）|
-| `@road-patrol/api` | `apps/api` | 後端（NestJS，六個行程共用同一份 `src`，進入點在 `src/main/`）|
-| `@road-patrol/shared` | `packages/shared` | 前後端共用的領域語彙（代碼表、狀態、中文名）|
-| `@road-patrol/e2e` | `e2e` | Playwright |
+| 套件                  | 位置              | 是什麼                                                         |
+| --------------------- | ----------------- | -------------------------------------------------------------- |
+| `@road-patrol/web`    | `apps/web`        | 前端（Vite + React）                                           |
+| `@road-patrol/api`    | `apps/api`        | 後端（NestJS，六個行程共用同一份 `src`，進入點在 `src/main/`） |
+| `@road-patrol/shared` | `packages/shared` | 前後端共用的領域語彙（代碼表、狀態、中文名）                   |
+| `@road-patrol/e2e`    | `e2e`             | Playwright                                                     |
 
 根目錄的 `yarn <script>` 是編排，實際工作在各 workspace 裡；
 要單獨對某個套件下指令用 `yarn workspace @road-patrol/api <script>`。
@@ -46,7 +46,7 @@ yarn start
 yarn web            # 前端 3005
 yarn api            # api 3008
 yarn tiles          # 圖層 3010
-yarn worker         # 案件佇列
+yarn case-worker    # 案件佇列
 yarn report-worker  # 報表佇列
 yarn scheduler      # 排程
 ```
@@ -126,7 +126,9 @@ yarn migrate:create <MigrationName>   # 產在 server/src/migrations/<年份>/
 - API 走 `models/api/patrolApi.js`，不要在元件裡拼路徑
 - 顏色與中文標籤取自 `config/vocabulary.js`（由 `@road-patrol/shared` 推導），
   不要手寫任何一份對照表 —— 前後端各存一份必定分岔，而且已經分岔過三次
-- 導覽與按鈕依 `can('X.Y')` 顯示 —— 看得到卻按了就 403 是最糟的介面
+- 查詢面板新增欄位時，後端 DTO 要同步並實作查詢條件。
+  DTO 缺欄位 → 整個請求 400；DTO 有但服務沒實作 → 條件被安靜忽略
+- 導覽與按鈕依 `can('X.Y')` 顯示：可見但無權操作的元件，是最不利於使用者的介面設計
 - 大型套件用 `lazy()` 延後載入，維持 `vite.config.mts` 的 `manualChunks` 分包
 
 ## 常用指令

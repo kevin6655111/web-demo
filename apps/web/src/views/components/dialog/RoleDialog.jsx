@@ -18,7 +18,15 @@ const FEATURE_LABEL = {
   ACCOUNT_MANAGE: '帳號管理'
 };
 
-const ACTION_LABEL = { READ: '檢視', CREATE: '新增', UPDATE: '修改', DELETE: '刪除', ACCEPT: '驗收', RUN: '執行', AGENT: '客服人員' };
+const ACTION_LABEL = {
+  READ: '檢視',
+  CREATE: '新增',
+  UPDATE: '修改',
+  DELETE: '刪除',
+  ACCEPT: '驗收',
+  RUN: '執行',
+  AGENT: '客服人員'
+};
 
 /**
  * 角色權限。
@@ -44,12 +52,16 @@ export default function RoleDialog({ open, row, onClose, onSaved }) {
     setForm({ KEY: row?.KEY ?? '', NAME: row?.NAME ?? '' });
     setError('');
 
-    authApi.actions().then((res) => setActionGroups(res.data ?? [])).catch((err) => setError(err.message));
+    authApi
+      .actions()
+      .then((res) => setActionGroups(res.data ?? []))
+      .catch((err) => setError(err.message));
   }, [open, row]);
 
   const toggle = (key) => setSelected((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
-  const toggleGroup = (keys, allOn) => setSelected((prev) => (allOn ? prev.filter((k) => !keys.includes(k)) : [...new Set([...prev, ...keys])]));
+  const toggleGroup = (keys, allOn) =>
+    setSelected((prev) => (allOn ? prev.filter((k) => !keys.includes(k)) : [...new Set([...prev, ...keys])]));
 
   const submit = async () => {
     setSubmitting(true);
@@ -92,8 +104,22 @@ export default function RoleDialog({ open, row, onClose, onSaved }) {
           </Alert>
         ) : (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-            <TextField size="small" label="角色代號" required value={form.KEY} onChange={(e) => setForm({ ...form, KEY: e.target.value })} placeholder="SUPERVISOR" />
-            <TextField size="small" label="角色名稱" required value={form.NAME} onChange={(e) => setForm({ ...form, NAME: e.target.value })} placeholder="工地主任" />
+            <TextField
+              size="small"
+              label="角色代號"
+              required
+              value={form.KEY}
+              onChange={(e) => setForm({ ...form, KEY: e.target.value })}
+              placeholder="SUPERVISOR"
+            />
+            <TextField
+              size="small"
+              label="角色名稱"
+              required
+              value={form.NAME}
+              onChange={(e) => setForm({ ...form, NAME: e.target.value })}
+              placeholder="工地主任"
+            />
           </Box>
         )}
 
@@ -123,7 +149,9 @@ export default function RoleDialog({ open, row, onClose, onSaved }) {
                       <FormControlLabel
                         key={a.KEY}
                         sx={{ mr: 1 }}
-                        control={<Checkbox size="small" checked={selected.includes(a.KEY)} onChange={() => toggle(a.KEY)} />}
+                        control={
+                          <Checkbox size="small" checked={selected.includes(a.KEY)} onChange={() => toggle(a.KEY)} />
+                        }
                         label={<Typography variant="caption">{ACTION_LABEL[a.NAME] ?? a.NAME}</Typography>}
                       />
                     ))}

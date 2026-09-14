@@ -2,7 +2,7 @@ import '@/env.bootstrap';
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ReportWorkerModule } from '@/report-worker.module';
+import { ReportWorkerModule } from './report-worker.module';
 
 /** report-worker 進入點：專門產 Excel / Word */
 (async () => {

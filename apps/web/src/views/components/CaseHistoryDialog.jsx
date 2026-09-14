@@ -99,7 +99,18 @@ const SNAPSHOT_FIELDS = {
     'images',
     'remark'
   ],
-  PROJECT: ['state', 'prjName', 'prjMain', 'prjSub', 'proprietor', 'proprietorLevel', 'startDate', 'endDate', 'budget', 'roadKm'],
+  PROJECT: [
+    'state',
+    'prjName',
+    'prjMain',
+    'prjSub',
+    'proprietor',
+    'proprietorLevel',
+    'startDate',
+    'endDate',
+    'budget',
+    'roadKm'
+  ],
   SURVEY: []
 };
 
@@ -213,14 +224,22 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
                   size="small"
                   variant="outlined"
                   label={CasePresenter.sourceMeta(h.SOURCE).label}
-                  sx={{ height: 19, fontSize: 10, borderColor: CasePresenter.sourceMeta(h.SOURCE).color, color: CasePresenter.sourceMeta(h.SOURCE).color }}
+                  sx={{
+                    height: 19,
+                    fontSize: 10,
+                    borderColor: CasePresenter.sourceMeta(h.SOURCE).color,
+                    color: CasePresenter.sourceMeta(h.SOURCE).color
+                  }}
                 />
                 <Typography variant="caption" color="text.secondary">
                   {h.MODIFIED_BY ?? '系統'} · {CasePresenter.time(h.MODIFIED_AT)}
                 </Typography>
 
                 {(h.FROM_STATE || h.TO_STATE) && (
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: '"JetBrains Mono", monospace', fontSize: 10 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', fontFamily: '"JetBrains Mono", monospace', fontSize: 10 }}
+                  >
                     {h.FROM_STATE ?? '—'} → {h.TO_STATE ?? '—'}
                   </Typography>
                 )}
@@ -230,7 +249,10 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
                 {changes.length > 0 && (
                   <Tooltip title={open ? '收合欄位' : `展開 ${changes.length} 個變更欄位`}>
                     <IconButton size="small" onClick={() => setExpanded(open ? null : h.VERSION)}>
-                      <ExpandMoreIcon fontSize="small" sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+                      <ExpandMoreIcon
+                        fontSize="small"
+                        sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}
+                      />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -246,7 +268,12 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
               {changes.length > 0 && !open && (
                 <Stack direction="row" spacing={0.5} sx={{ mt: 0.6 }} flexWrap="wrap" useFlexGap>
                   {changes.map(([field]) => (
-                    <Chip key={field} size="small" label={CasePresenter.fieldLabel(field)} sx={{ height: 19, fontSize: 10 }} />
+                    <Chip
+                      key={field}
+                      size="small"
+                      label={CasePresenter.fieldLabel(field)}
+                      sx={{ height: 19, fontSize: 10 }}
+                    />
                   ))}
                 </Stack>
               )}
@@ -264,8 +291,12 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
                     {changes.map(([field, ch]) => (
                       <TableRow key={field}>
                         <TableCell sx={{ color: 'text.secondary' }}>{CasePresenter.fieldLabel(field)}</TableCell>
-                        <TableCell sx={{ color: 'var(--c-error)', fontSize: 12 }}>{CasePresenter.fieldValue(field, ch.from)}</TableCell>
-                        <TableCell sx={{ color: 'var(--c-success)', fontSize: 12 }}>{CasePresenter.fieldValue(field, ch.to)}</TableCell>
+                        <TableCell sx={{ color: 'var(--c-error)', fontSize: 12 }}>
+                          {CasePresenter.fieldValue(field, ch.from)}
+                        </TableCell>
+                        <TableCell sx={{ color: 'var(--c-success)', fontSize: 12 }}>
+                          {CasePresenter.fieldValue(field, ch.to)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -301,14 +332,21 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
 
                 {/* 來源 IP：稽核時要能回答「是不是從辦公室改的」 */}
                 {h.CLIENT_IP && (
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.8, display: 'block', fontFamily: '"JetBrains Mono", monospace' }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mt: 0.8, display: 'block', fontFamily: '"JetBrains Mono", monospace' }}
+                  >
                     來源 IP：{h.CLIENT_IP}
                   </Typography>
                 )}
               </Collapse>
 
               {h.NOTE && (
-                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary', fontStyle: 'italic' }}>
+                <Typography
+                  variant="caption"
+                  sx={{ mt: 0.5, display: 'block', color: 'text.secondary', fontStyle: 'italic' }}
+                >
                   「{h.NOTE}」
                 </Typography>
               )}
@@ -349,7 +387,9 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
 
             return (
               <TableRow key={field}>
-                <TableCell sx={{ position: 'sticky', left: 0, bgcolor: 'background.paper', color: 'text.secondary', zIndex: 1 }}>
+                <TableCell
+                  sx={{ position: 'sticky', left: 0, bgcolor: 'background.paper', color: 'text.secondary', zIndex: 1 }}
+                >
                   {CasePresenter.fieldLabel(field)}
                 </TableCell>
                 {rows.map((h) => {
@@ -359,7 +399,10 @@ export default function CaseHistoryDialog({ caseType = 'CASE_PATROL', caseId, ca
                     <TableCell key={h.VERSION} align="center" sx={{ fontSize: 12 }}>
                       {ch ? (
                         <Stack spacing={0} alignItems="center">
-                          <Typography variant="caption" sx={{ color: 'var(--c-error)', textDecoration: 'line-through', fontSize: 10 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'var(--c-error)', textDecoration: 'line-through', fontSize: 10 }}
+                          >
                             {CasePresenter.fieldValue(field, ch.from)}
                           </Typography>
                           <Typography variant="caption" sx={{ color: 'var(--c-success)', fontSize: 11 }}>

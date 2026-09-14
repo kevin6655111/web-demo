@@ -11,16 +11,18 @@
     "allowJs": true,
     "types": ["node"],
 
+    // 沒有 baseUrl：它在 TypeScript 7 會停用，而且會讓每個裸模組名都先去 src/ 找一輪。
+    // 不設的話 paths 就以這份 tsconfig 所在目錄為基準，語意更明確。
+    //
     // `@road-patrol/shared` 不列在這裡：它由 workspace 的 node_modules 連結解析到
     // 自己編好的 dist。走 paths 指向原始碼的話，tsc 會把它一起編進來，
     // rootDir 就得往上抬到整個 repo，產出路徑會變成 dist/apps/api/src/…
-    "baseUrl": "./src",
     "paths": {
-      "@/*": ["*"],
-      "@entities/*": ["auth/entities/*", "case-patrol/entities/*"],
-      "@decorators/*": ["auth/decorators/*"],
-      "@constants/*": ["auth/constants/*"],
-      "@app-types/*": ["http/types/*", "auth/types/*", "case-patrol/types/*", "env/types/*"]
+      "@/*": ["./src/*"],
+      "@entities/*": ["./src/auth/entities/*", "./src/case-patrol/entities/*"],
+      "@decorators/*": ["./src/auth/decorators/*"],
+      "@constants/*": ["./src/auth/constants/*"],
+      "@app-types/*": ["./src/http/types/*", "./src/auth/types/*", "./src/case-patrol/types/*", "./src/env/types/*"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]

@@ -15,7 +15,21 @@ import { CaseHistoryController } from './case-history.controller';
 import { CaseHistoryService } from './case-history.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CaseHistory, PatrolCase, PatrolCaseAddress, PatrolCaseStatus, WorkOrder, WorkOrderStatus, WorkOrderImprovement, Maintenance, MaintenanceStatus, MaintenanceRepair, Project])],
+  imports: [
+    TypeOrmModule.forFeature([
+      CaseHistory,
+      PatrolCase,
+      PatrolCaseAddress,
+      PatrolCaseStatus,
+      WorkOrder,
+      WorkOrderStatus,
+      WorkOrderImprovement,
+      Maintenance,
+      MaintenanceStatus,
+      MaintenanceRepair,
+      Project
+    ])
+  ],
   controllers: [CaseHistoryController],
   providers: [CaseHistoryService],
   exports: [CaseHistoryService]

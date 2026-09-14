@@ -48,7 +48,13 @@ export class TilesController {
 
     // 圖磚網址由地圖套件組出來，只會是字串；空字串代表「不篩」而不是狀態 0
     const statusValue = status === undefined || status === '' ? undefined : Number(status);
-    const tile = await this.tilesService.getCaseTile(z, x, y, user.companyId, Number.isNaN(statusValue) ? undefined : statusValue);
+    const tile = await this.tilesService.getCaseTile(
+      z,
+      x,
+      y,
+      user.companyId,
+      Number.isNaN(statusValue) ? undefined : statusValue
+    );
 
     res.setHeader('Content-Type', 'application/x-protobuf');
     res.setHeader('Cache-Control', 'private, max-age=300');

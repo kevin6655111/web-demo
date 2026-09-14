@@ -1,0 +1,17 @@
+# 建置產物與外部產出
+**/dist/
+**/build/
+dist-offline/
+e2e/results/
+e2e/playwright-report/
+e2e/specs/.auth/
+node_modules/
+yarn.lock
+
+# 由工具產生、不手寫
+apps/api/src/migrations/**
+
+# Prettier 沒有這些格式的 parser，卻會依副檔名猜(.inc 會被當成 HTML 重排)
+nginx/
+*.inc
+*.conf

@@ -37,16 +37,38 @@ export default function PlanDialog({ open, row, onClose, onSaved }) {
     setErrors({});
     setError('');
 
-    fleetApi.vehicles({}).then((res) => setVehicles(res.data ?? [])).catch(() => {});
-    projectApi.list().then((res) => setProjects(res.data ?? [])).catch(() => {});
+    fleetApi
+      .vehicles({})
+      .then((res) => setVehicles(res.data ?? []))
+      .catch(() => {});
+    projectApi
+      .list()
+      .then((res) => setProjects(res.data ?? []))
+      .catch(() => {});
   }, [open, row]);
 
   const fields = [
     { key: 'CODE', label: '計畫代號', required: true, placeholder: 'PLAN-004' },
     { key: 'NAME', label: '計畫名稱', required: true },
-    { key: 'FREQUENCY', label: '頻率', type: 'select', required: true, options: Object.entries(FREQ).map(([value, label]) => ({ value, label })) },
-    { key: 'VEHICLE_ID', label: '指派車輛', type: 'select', options: vehicles.map((v) => ({ value: String(v.ID), label: v.PLATE_NO })) },
-    { key: 'PROJECT_ID', label: '所屬標案', type: 'select', options: projects.map((p) => ({ value: String(p.ID), label: p.CODE })) },
+    {
+      key: 'FREQUENCY',
+      label: '頻率',
+      type: 'select',
+      required: true,
+      options: Object.entries(FREQ).map(([value, label]) => ({ value, label }))
+    },
+    {
+      key: 'VEHICLE_ID',
+      label: '指派車輛',
+      type: 'select',
+      options: vehicles.map((v) => ({ value: String(v.ID), label: v.PLATE_NO }))
+    },
+    {
+      key: 'PROJECT_ID',
+      label: '所屬標案',
+      type: 'select',
+      options: projects.map((p) => ({ value: String(p.ID), label: p.CODE }))
+    },
     { key: 'BUFFER_M', label: '覆蓋緩衝距離', type: 'number', unit: 'm', hint: '走多近算巡過；30 公尺讓對向車道也算' },
     { key: 'ACTIVE', label: '啟用（納入覆蓋率計算）', type: 'switch', full: true },
     {

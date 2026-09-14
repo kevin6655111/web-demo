@@ -34,7 +34,9 @@ describe('KpiCard', () => {
   });
 
   it('使用者偏好減少動態效果時，直接顯示結果不做動畫', () => {
-    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 
     renderCard({ value: 99 });
     expect(screen.getByText('99')).toBeInTheDocument();

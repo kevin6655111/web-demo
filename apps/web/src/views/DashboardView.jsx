@@ -76,7 +76,10 @@ export default function DashboardView() {
 
   const kpis = useMemo(() => DashboardPresenter.kpiCards(data?.KPI), [data]);
   const trend = useMemo(() => DashboardPresenter.trendSeries(data?.TREND), [data]);
-  const types = useMemo(() => DashboardPresenter.typeSeries(data?.BY_TYPE, muiTheme.palette.mode), [data, muiTheme.palette.mode]);
+  const types = useMemo(
+    () => DashboardPresenter.typeSeries(data?.BY_TYPE, muiTheme.palette.mode),
+    [data, muiTheme.palette.mode]
+  );
   const hotspots = useMemo(() => DashboardPresenter.hotspots(data?.HOTSPOTS), [data]);
   const overdue = useMemo(() => DashboardPresenter.overdue(data?.OVERDUE), [data]);
 
@@ -115,14 +118,36 @@ export default function DashboardView() {
                     <stop offset="100%" stopColor={muiTheme.palette.success.main} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" stroke={muiTheme.palette.text.secondary} fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke={muiTheme.palette.text.secondary} fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <ReTooltip
-                  contentStyle={chartTooltipStyle}
+                <XAxis
+                  dataKey="day"
+                  stroke={muiTheme.palette.text.secondary}
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
                 />
+                <YAxis
+                  stroke={muiTheme.palette.text.secondary}
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <ReTooltip contentStyle={chartTooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Area type="monotone" dataKey="案件" stroke={muiTheme.palette.primary.main} strokeWidth={2} fill="url(#gTotal)" />
-                <Area type="monotone" dataKey="完修" stroke={muiTheme.palette.success.main} strokeWidth={2} fill="url(#gRepaired)" />
+                <Area
+                  type="monotone"
+                  dataKey="案件"
+                  stroke={muiTheme.palette.primary.main}
+                  strokeWidth={2}
+                  fill="url(#gTotal)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="完修"
+                  stroke={muiTheme.palette.success.main}
+                  strokeWidth={2}
+                  fill="url(#gRepaired)"
+                />
               </AreaChart>
             </ResponsiveContainer>
           </Paper>
@@ -143,7 +168,15 @@ export default function DashboardView() {
             </Typography>
             <ResponsiveContainer width="100%" height="86%">
               <PieChart>
-                <Pie data={types} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="78%" paddingAngle={3} stroke="none">
+                <Pie
+                  data={types}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius="52%"
+                  outerRadius="78%"
+                  paddingAngle={3}
+                  stroke="none"
+                >
                   {types.map((t) => (
                     <Cell key={t.name} fill={t.fill} />
                   ))}
@@ -178,7 +211,8 @@ export default function DashboardView() {
                         height: '100%',
                         width: `${h.RATIO * 100}%`,
                         borderRadius: 3,
-                        background: (t) => `linear-gradient(90deg, ${t.palette.primary.main}, ${t.palette.secondary.main})`,
+                        background: (t) =>
+                          `linear-gradient(90deg, ${t.palette.primary.main}, ${t.palette.secondary.main})`,
                         transition: 'width .6s ease'
                       }}
                     />
@@ -203,7 +237,12 @@ export default function DashboardView() {
                   direction="row"
                   alignItems="center"
                   spacing={1}
-                  sx={{ p: 1.2, borderRadius: 2, border: '1px solid', borderColor: o.SEVERE ? 'error.main' : 'divider' }}
+                  sx={{
+                    p: 1.2,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: o.SEVERE ? 'error.main' : 'divider'
+                  }}
                 >
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography variant="body2" noWrap>

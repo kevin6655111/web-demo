@@ -6,6 +6,7 @@ import { Idempotent } from '@decorators/idempotent.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
+import { AllowApiKey } from '@decorators/api-key.decorator';
 import { API_AUTH } from '@/util/app-swagger';
 import { CasePatrolService } from './case-patrol.service';
 import {
@@ -13,6 +14,7 @@ import {
   BatchUpdateStatusDto,
   CaseQueryDto,
   CaseStatsQueryDto,
+  MileageQueryDto,
   NearbyQueryDto,
   UpdateCaseDto,
   UpdateCaseStatusDto
@@ -52,6 +54,7 @@ export class CasePatrolController {
   @ApiBody({ type: AddCaseDto, examples: ADD_CASE_EXAMPLES })
   @ApiResponse({ status: 201, description: '建立成功。`data.DUPLICATED` 為 true 表示這是重複遞送，未新增資料' })
   @ApiCommonErrors({ conflict: '相同 Idempotency-Key 用於不同內容，或前一筆相同請求仍在處理中' })
+  @AllowApiKey()
   @Idempotent(600)
   @Audit({ action: 'CASE', keys: ['EXTERNAL_ID', 'CRACK_TYPE', 'DETECTED_AT'] })
   @RequireAction(ACTION.CASE.CREATE)
@@ -133,7 +136,10 @@ export class CasePatrolController {
   @ApiBody({
     type: UpdateCaseDto,
     examples: {
-      fixType: { summary: '複查後修正判定', value: { ID: 12, CRACK_TYPE: 'SUBSIDENCE', SEVERITY: 'HIGH', REMARK: '複查為路基下陷' } },
+      fixType: {
+        summary: '複查後修正判定',
+        value: { ID: 12, CRACK_TYPE: 'SUBSIDENCE', SEVERITY: 'HIGH', REMARK: '複查為路基下陷' }
+      },
       fixArea: { summary: '修正面積與地址', value: { ID: 12, AREA_M2: 1.8, ADDRESS: '臺灣大道三段 99 號前' } }
     }
   })
@@ -228,6 +234,76 @@ export class CasePatrolController {
    * **這條路由必須放在所有 `patrol/case/xxx` 之後** ——
    * `:ID` 會吃掉任何字串，放前面的話 `nearby` 與 `stats` 都會變成「找不到案件 nearby」。
    */
+  /** 依案件編號查詢 */
+  @Get('patrol/case/num/:CASE_NUM')
+  @ApiOperation({
+    summary: '依案件編號查詢單筆',
+    description: [
+      '業主與公文用的是案件編號而不是 id ——「DEMO01000123 這件修好了沒有」',
+      '是最常被問的一句話，而承辦手上只有那個編號。',
+      '',
+      '編碼失敗或還沒編號的案件只有外部編號，這支端點兩者都查得到。',
+      '',
+      '**必須宣告在 `patrol/case/:ID` 之前** —— Nest 依宣告順序比對路由。',
+      '',
+      '所需權限：`CASE.READ`'
+    ].join('\n')
+  })
+  @ApiParam({ name: 'CASE_NUM', example: 'DEMO01000123' })
+  @ApiResponse({ status: 200, description: '查詢成功' })
+  @ApiCommonErrors({ notFound: '查無此案件編號' })
+  @RequireAction(ACTION.CASE.READ)
+  async handleGetByCaseNum(@Param('CASE_NUM') caseNum: string, @User() user: AuthUser): Promise<HttpResult> {
+    return await this.casePatrolService.getByCaseNum(caseNum, user.companyId);
+  }
+
+  /** 連續破壞警示 */
+  @Get('patrol/case/alligator-warning')
+  @ApiOperation({
+    summary: '連續鱷魚狀裂縫警示',
+    description: [
+      '單獨一處龜裂是局部修補，**連續一整段**代表路基已經失效 ——',
+      '那要整段刨鋪，是預算等級不同的工程。這個差別在逐筆的清單上看不出來，',
+      '承辦要一件一件對座標才會發現。',
+      '',
+      '判定：同一輛車、相鄰兩筆距離不超過 10 公尺、序號連號或同號，且至少 2 筆。',
+      '中間夾雜其他破壞類型不會中斷序列 —— 一段龜裂的路面上本來就會混著坑洞。',
+      '',
+      '`SPAN_M` 是群組頭尾的距離：整段刨鋪的估價要的是這個數字，不是筆數。',
+      '',
+      '查詢條件與案件清單相同。所需權限：`CASE.READ`'
+    ].join('\n')
+  })
+  @ApiResponse({ status: 200, description: '查詢成功；沒有連續群組時回 warn' })
+  @ApiCommonErrors()
+  @RequireAction(ACTION.CASE.READ)
+  async handleAlligatorWarning(@Query() dto: CaseQueryDto, @User() user: AuthUser): Promise<HttpResult> {
+    return await this.casePatrolService.getAlligatorWarnings(dto, user.companyId);
+  }
+
+  /** 巡查里程統計 */
+  @Get('patrol/mileage')
+  @ApiOperation({
+    summary: '巡查里程統計',
+    description: [
+      '依 (日期 × 車輛 × 行政區) 拆開 —— 請款是按行政區結算的，',
+      '一台車一天跑過三個區，那一天的里程要分成三筆。',
+      '',
+      '**跟上一筆距離大於 5 公尺才計入**：車子停在紅燈前的兩分鐘會產生',
+      '二十幾個幾乎重疊的點，不濾掉的話 GPS 的原地跳動會被算成里程。',
+      '',
+      '一趟行程的起點不與上一趟接續：中間那段是回廠的路，不是巡查里程。',
+      '',
+      '所需權限：`TRACK.READ`'
+    ].join('\n')
+  })
+  @ApiResponse({ status: 200, description: '查詢成功' })
+  @ApiCommonErrors()
+  @RequireAction(ACTION.TRACK.READ)
+  async handleMileage(@Query() dto: MileageQueryDto, @User() user: AuthUser): Promise<HttpResult> {
+    return await this.casePatrolService.getMileage(dto, user.companyId);
+  }
+
   @Get('patrol/case/:ID')
   @ApiOperation({
     summary: '案件詳情',

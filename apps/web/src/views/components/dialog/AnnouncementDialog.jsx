@@ -35,7 +35,13 @@ export default function AnnouncementDialog({ open, row, onClose, onSaved }) {
 
   const fields = [
     { key: 'TITLE', label: '標題', required: true, full: true },
-    { key: 'LEVEL', label: '層級', type: 'select', required: true, options: Object.entries(LEVEL).map(([value, label]) => ({ value, label })) },
+    {
+      key: 'LEVEL',
+      label: '層級',
+      type: 'select',
+      required: true,
+      options: Object.entries(LEVEL).map(([value, label]) => ({ value, label }))
+    },
     { key: 'PINNED', label: '置頂且不可關閉', type: 'switch' },
     { key: 'START_AT', label: '開始顯示', type: 'datetime-local', hint: '不填則立即生效' },
     { key: 'END_AT', label: '結束顯示', type: 'datetime-local', hint: '不填則永久顯示' },

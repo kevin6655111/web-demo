@@ -170,7 +170,13 @@ export default function CaseView() {
         emptyText="查無符合條件的案件"
       />
 
-      <CaseDetailDialog open={!!detailId} caseId={detailId} caseList={rows} onClose={() => setDetailId(null)} onChanged={load} />
+      <CaseDetailDialog
+        open={!!detailId}
+        caseId={detailId}
+        caseList={rows}
+        onClose={() => setDetailId(null)}
+        onChanged={load}
+      />
 
       <CaseHistoryDialog
         caseType="CASE_PATROL"

@@ -28,7 +28,13 @@ import CaseHistoryDialog from '../CaseHistoryDialog';
 import { maintenanceApi } from '../../../models/api/patrolApi';
 import { CasePresenter } from '../../../presenters/CasePresenter';
 import { opts } from '../../../config/queryFields';
-import { CRACK_LABEL, DEGREE_LABEL, MAINTENANCE_COLOR, MAINTENANCE_TYPE_LABEL, MATERIAL_LABEL } from '../../../config/vocabulary';
+import {
+  CRACK_LABEL,
+  DEGREE_LABEL,
+  MAINTENANCE_COLOR,
+  MAINTENANCE_TYPE_LABEL,
+  MATERIAL_LABEL
+} from '../../../config/vocabulary';
 import { useUser } from '../../../context/UserContext';
 
 const EDITABLE = [
@@ -123,7 +129,9 @@ export default function MaintenanceDialog({ open, row, onClose, onSaved, onDispa
   const changed = useMemo(() => {
     if (!origin) return {};
 
-    return Object.fromEntries(EDITABLE.filter((k) => String(origin[k] ?? '') !== String(form[k] ?? '')).map((k) => [k, form[k]]));
+    return Object.fromEntries(
+      EDITABLE.filter((k) => String(origin[k] ?? '') !== String(form[k] ?? '')).map((k) => [k, form[k]])
+    );
   }, [origin, form]);
 
   const isDirty = Object.keys(changed).length > 0;
@@ -234,7 +242,14 @@ export default function MaintenanceDialog({ open, row, onClose, onSaved, onDispa
       type === 'RB' && {
         title: '巡修回填',
         fields: [
-          { label: '施工材料', name: 'MATERIAL', type: 'select', required: true, span: 6, options: opts(MATERIAL_LABEL) },
+          {
+            label: '施工材料',
+            name: 'MATERIAL',
+            type: 'select',
+            required: true,
+            span: 6,
+            options: opts(MATERIAL_LABEL)
+          },
           { label: '用料數量', name: 'QUANTITY', type: 'number', unit: '包', span: 6 },
           { label: '回填長度', name: 'REFILL_LENGTH', type: 'number', unit: 'm', span: 6 },
           { label: '回填寬度', name: 'REFILL_WIDTH', type: 'number', unit: 'm', span: 6 }
@@ -294,7 +309,12 @@ export default function MaintenanceDialog({ open, row, onClose, onSaved, onDispa
                     <Chip size="small" variant="outlined" label={CasePresenter.maintenanceTypeLabel(m.TYPE)} />
                     {m.WORK_ORDER_NUM && <Chip size="small" variant="outlined" label={`派工 ${m.WORK_ORDER_NUM}`} />}
                     {m.MISSING_IMAGE_COUNT > 0 && (
-                      <Chip size="small" color="warning" variant="outlined" label={`缺 ${m.MISSING_IMAGE_COUNT} 張必要照片`} />
+                      <Chip
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        label={`缺 ${m.MISSING_IMAGE_COUNT} 張必要照片`}
+                      />
                     )}
                   </>
                 )}
@@ -310,9 +330,16 @@ export default function MaintenanceDialog({ open, row, onClose, onSaved, onDispa
           </Stack>
         </DialogTitle>
 
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none' } }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          sx={{ px: 2, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none' } }}
+        >
           <Tab value="info" label="單據內容" />
-          <Tab value="image" label={m?.MISSING_IMAGE_COUNT > 0 ? `現場照片（缺 ${m.MISSING_IMAGE_COUNT}）` : '現場照片'} />
+          <Tab
+            value="image"
+            label={m?.MISSING_IMAGE_COUNT > 0 ? `現場照片（缺 ${m.MISSING_IMAGE_COUNT}）` : '現場照片'}
+          />
         </Tabs>
 
         <DialogContent dividers sx={{ p: 2 }}>
@@ -337,7 +364,9 @@ export default function MaintenanceDialog({ open, row, onClose, onSaved, onDispa
             </Stack>
           )}
 
-          {m && tab === 'image' && <ImageUploadField orderId={m.ID} canEdit={canEdit} api={maintenanceApi} onChanged={() => load(m.ID)} />}
+          {m && tab === 'image' && (
+            <ImageUploadField orderId={m.ID} canEdit={canEdit} api={maintenanceApi} onChanged={() => load(m.ID)} />
+          )}
         </DialogContent>
 
         <DialogActions sx={{ px: 2.5, py: 1.5 }}>
@@ -370,7 +399,10 @@ export default function MaintenanceDialog({ open, row, onClose, onSaved, onDispa
               color="error"
               startIcon={<DeleteOutlineIcon />}
               disabled={saving}
-              onClick={() => window.confirm(`確定要刪除巡查單 ${m.CASE_NUM}？若它已有派工單，會被擋下並說明原因。`) && changeStatus(-1)}
+              onClick={() =>
+                window.confirm(`確定要刪除巡查單 ${m.CASE_NUM}？若它已有派工單，會被擋下並說明原因。`) &&
+                changeStatus(-1)
+              }
             >
               刪除
             </Button>

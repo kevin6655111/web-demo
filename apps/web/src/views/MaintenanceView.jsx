@@ -52,7 +52,9 @@ export default function MaintenanceView() {
   useEffect(() => {
     authApi
       .orgUsers()
-      .then((res) => setInspectors((res.data ?? []).filter((u) => u.ACTIVE).map((u) => ({ ID: u.ID, NAME: u.USER_NAME }))))
+      .then((res) =>
+        setInspectors((res.data ?? []).filter((u) => u.ACTIVE).map((u) => ({ ID: u.ID, NAME: u.USER_NAME })))
+      )
       .catch(() => {});
   }, []);
 
@@ -149,7 +151,9 @@ export default function MaintenanceView() {
       {
         key: 'STATUS',
         label: '狀態',
-        render: (v) => <StatusChip label={CasePresenter.maintenanceLabel(v)} color={MAINTENANCE_COLOR[v] ?? 'var(--c-neutral)'} />
+        render: (v) => (
+          <StatusChip label={CasePresenter.maintenanceLabel(v)} color={MAINTENANCE_COLOR[v] ?? 'var(--c-neutral)'} />
+        )
       },
       { key: 'SURVEY_DATE', label: '調查日' },
       { key: 'SURVEY_USER', label: '調查人員' },
@@ -166,7 +170,10 @@ export default function MaintenanceView() {
         // 派工狀態一起帶出來：巡查單列表最常被問的就是「這張派了沒、派到哪了」
         render: (v, row) =>
           v ? (
-            <StatusChip label={`${v} ${row.WORK_ORDER_STATUS_NAME ?? ''}`} color={WORK_ORDER_COLOR[row.WORK_ORDER_STATUS] ?? 'var(--c-neutral)'} />
+            <StatusChip
+              label={`${v} ${row.WORK_ORDER_STATUS_NAME ?? ''}`}
+              color={WORK_ORDER_COLOR[row.WORK_ORDER_STATUS] ?? 'var(--c-neutral)'}
+            />
           ) : (
             '未派工'
           )
@@ -185,7 +192,12 @@ export default function MaintenanceView() {
           共 {total || rows.length} 張巡查單{selected.size > 0 && `，已選 ${selected.size} 張`}
         </Typography>
 
-        <Chip size="small" variant="outlined" color={connected ? 'success' : 'default'} label={connected ? '即時更新中' : '連線中…'} />
+        <Chip
+          size="small"
+          variant="outlined"
+          color={connected ? 'success' : 'default'}
+          label={connected ? '即時更新中' : '連線中…'}
+        />
 
         {can('MAINTENANCE.UPDATE') && (
           <Button size="small" startIcon={<VisibilityIcon />} disabled={!selected.size} onClick={() => batch(1)}>
@@ -193,7 +205,13 @@ export default function MaintenanceView() {
           </Button>
         )}
         {can('MAINTENANCE.APPROVE') && (
-          <Button size="small" color="info" startIcon={<RestoreFromTrashIcon />} disabled={!selected.size} onClick={() => batch(RESTORE)}>
+          <Button
+            size="small"
+            color="info"
+            startIcon={<RestoreFromTrashIcon />}
+            disabled={!selected.size}
+            onClick={() => batch(RESTORE)}
+          >
             復原
           </Button>
         )}
@@ -203,7 +221,9 @@ export default function MaintenanceView() {
             color="error"
             startIcon={<DeleteOutlineIcon />}
             disabled={!selected.size}
-            onClick={() => window.confirm(`確定要刪除 ${selected.size} 張巡查單？已有派工單的會被跳過並說明原因。`) && batch(-1)}
+            onClick={() =>
+              window.confirm(`確定要刪除 ${selected.size} 張巡查單？已有派工單的會被跳過並說明原因。`) && batch(-1)
+            }
           >
             刪除
           </Button>

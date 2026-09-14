@@ -34,7 +34,8 @@ export const ACTION = {
   },
   FLEET: {
     READ: 'FLEET.READ',
-    UPDATE: 'FLEET.UPDATE' // 車輛基本資料維護
+    UPDATE: 'FLEET.UPDATE', // 車輛基本資料維護
+    COMMAND: 'FLEET.COMMAND' // 對車機下指令(串流、ECU)
   },
   TRACK: {
     READ: 'TRACK.READ',
@@ -51,14 +52,17 @@ export const ACTION = {
   },
   SURVEY: {
     READ: 'SURVEY.READ',
-    UPDATE: 'SURVEY.UPDATE'
+    CREATE: 'SURVEY.CREATE', // App 收案
+    UPDATE: 'SURVEY.UPDATE',
+    EXPERT: 'SURVEY.EXPERT' // 專家系統：轉讓案件、審視全欄位
   },
   SUPPORT: {
     /** 每個登入者都能發問，所以沒有 READ —— 有的是「以客服身分處理別人的問題」 */
     AGENT: 'SUPPORT.AGENT'
   },
   DASHBOARD: {
-    READ: 'DASHBOARD.READ'
+    READ: 'DASHBOARD.READ',
+    SETTLE: 'DASHBOARD.SETTLE' // 手動重算結算
   },
   TASK: {
     READ: 'TASK.READ',
@@ -73,6 +77,33 @@ export const ACTION = {
     CREATE: 'ACCOUNT.CREATE',
     UPDATE: 'ACCOUNT.UPDATE',
     DELETE: 'ACCOUNT.DELETE'
+  },
+  /** 對接系統與車機用的 API Key：核發、停用 */
+  API_KEY: {
+    MANAGE: 'API_KEY.MANAGE'
+  },
+  /**
+   * 二篩。
+   *
+   * 四個動作分開，因為它們是四種不同的人：
+   *   READ   看清單與統計 —— 業主代表也會想看判讀進度
+   *   JUDGE  判定 —— 判讀員的日常
+   *   REVIEW 覆核 —— 管理者推翻判讀員的結果；判讀員自己不該有
+   *   MANAGE 薪資 —— 看得到別人的薪資是另一件事
+   *
+   * 把判定併進 READ 的話，檢視者也能判；把覆核給判讀員的話，
+   * 他可以把管理者推翻的結果再改回來，而薪資是按判定量計價的。
+   */
+  SIFT: {
+    READ: 'SIFT.READ',
+    JUDGE: 'SIFT.JUDGE',
+    REVIEW: 'SIFT.REVIEW',
+    MANAGE: 'SIFT.MANAGE'
+  },
+  /** 道路設定：巡查路線、路段啟用、道路區塊 */
+  ROAD_SETTING: {
+    READ: 'ROAD_SETTING.READ',
+    UPDATE: 'ROAD_SETTING.UPDATE'
   }
 } as const;
 
@@ -108,7 +139,11 @@ export const ROLE_PRESET = {
       ACTION.ROAD_EVAL.READ,
       ACTION.PROJECT.READ,
       ACTION.SURVEY.READ,
+      ACTION.SURVEY.CREATE,
       ACTION.SURVEY.UPDATE,
+      ACTION.SIFT.READ,
+      ACTION.SIFT.JUDGE,
+      ACTION.ROAD_SETTING.READ,
       ACTION.SUPPORT.AGENT
     ] as string[]
   },
@@ -137,7 +172,10 @@ export const ROLE_PRESET = {
       ACTION.DASHBOARD.READ,
       ACTION.FLEET.READ,
       ACTION.TRACK.READ,
-      ACTION.ROAD_EVAL.READ
+      ACTION.ROAD_EVAL.READ,
+      ACTION.SIFT.READ,
+      ACTION.SURVEY.READ,
+      ACTION.ROAD_SETTING.READ
     ] as string[]
   }
 } as const;

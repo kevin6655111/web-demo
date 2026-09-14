@@ -6,6 +6,10 @@ import { Company } from '@/auth/entities/company.entity';
 import { CompanyGrant } from '@/auth/entities/company-grant.entity';
 import { Role } from '@/auth/entities/role.entity';
 import { User } from '@/auth/entities/user.entity';
+import { Department } from '@/auth/entities/department.entity';
+import { PasswordHistory } from '@/auth/entities/password-history.entity';
+import { UserActionOverride } from '@/auth/entities/user-action-override.entity';
+import { ApiKey } from '@/auth/entities/api-key.entity';
 import { Project } from '@/project/entities/project.entity';
 import { CompanyProject } from '@/project/entities/company-project.entity';
 import { ProjectVehicle } from '@/project/entities/project-vehicle.entity';
@@ -22,11 +26,19 @@ import { WorkOrderStatus } from '@/work-order/entities/work-order-status.entity'
 import { WorkOrderImage } from '@/work-order/entities/work-order-image.entity';
 import { WorkOrderImprovement } from '@/work-order/entities/work-order-improvement.entity';
 import { WorkOrderUser } from '@/work-order/entities/work-order-user.entity';
+import { CaseSequence } from '@/case-encode/entities/case-sequence.entity';
+import { MailJob } from '@/mail/entities/mail-job.entity';
+import { DeviceToken } from '@/fire-base/entities/device-token.entity';
+import { AddressPoint } from '@/location/entities/address-point.entity';
+import { AddressGrid } from '@/location/entities/address-grid.entity';
 import { Maintenance } from '@/maintenance/entities/maintenance.entity';
 import { MaintenanceStatus } from '@/maintenance/entities/maintenance-status.entity';
 import { MaintenanceRepair } from '@/maintenance/entities/maintenance-repair.entity';
 import { MaintenanceImage } from '@/maintenance/entities/maintenance-image.entity';
 import { ReportJob } from '@/report/entities/report-job.entity';
+import { DailyCheck } from '@/dashboard/entities/daily-check.entity';
+import { DashboardCaseStat } from '@/dashboard/entities/dashboard-case-stat.entity';
+import { DashboardOrderStat } from '@/dashboard/entities/dashboard-order-stat.entity';
 import { CaseMessage } from '@/websocket/entities/case-message.entity';
 import { ModuleNav } from '@/orgstruct/entities/module.entity';
 import { Feature } from '@/orgstruct/entities/feature.entity';
@@ -34,8 +46,13 @@ import { Vehicle } from '@/fleet/entities/vehicle.entity';
 import { VehicleTrack } from '@/fleet/entities/vehicle-track.entity';
 import { RoadSegment } from '@/road-eval/entities/road-segment.entity';
 import { PatrolPlan } from '@/patrol-setting/entities/patrol-plan.entity';
+import { RoadLine } from '@/road-setting/entities/road-line.entity';
+import { RoadBlock } from '@/road-setting/entities/road-block.entity';
+import { PatrolPoint } from '@/road-setting/entities/patrol-point.entity';
+import { PatrolPointStat } from '@/road-setting/entities/patrol-point-stat.entity';
 import { SurveyOrder } from '@/survey/entities/survey-order.entity';
 import { SurveyCase } from '@/survey/entities/survey-case.entity';
+import { SurveyOrderDetail } from '@/survey/entities/survey-order-detail.entity';
 import { SupportThread } from '@/support/entities/support-thread.entity';
 import { SupportMessage } from '@/support/entities/support-message.entity';
 import { Announcement } from '@/core/announcement.entity';
@@ -53,6 +70,10 @@ export const ALL_ENTITIES = [
   CompanyGrant,
   Role,
   User,
+  Department,
+  PasswordHistory,
+  UserActionOverride,
+  ApiKey,
   Project,
   CompanyProject,
   ProjectVehicle,
@@ -69,11 +90,19 @@ export const ALL_ENTITIES = [
   WorkOrderImage,
   WorkOrderImprovement,
   WorkOrderUser,
+  CaseSequence,
+  MailJob,
+  DeviceToken,
+  AddressPoint,
+  AddressGrid,
   Maintenance,
   MaintenanceStatus,
   MaintenanceRepair,
   MaintenanceImage,
   ReportJob,
+  DailyCheck,
+  DashboardCaseStat,
+  DashboardOrderStat,
   CaseMessage,
   ModuleNav,
   Feature,
@@ -81,7 +110,12 @@ export const ALL_ENTITIES = [
   VehicleTrack,
   RoadSegment,
   PatrolPlan,
+  RoadLine,
+  RoadBlock,
+  PatrolPoint,
+  PatrolPointStat,
   SurveyOrder,
+  SurveyOrderDetail,
   SurveyCase,
   SupportThread,
   SupportMessage,

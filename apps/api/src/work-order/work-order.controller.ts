@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UploadedFiles } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  UploadedFiles
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { HttpResult } from '@/http/http-response';
@@ -12,7 +25,13 @@ import { ApiCommonErrors } from '@decorators/api-error.decorator';
 import { API_AUTH } from '@/util/app-swagger';
 import { IMAGE_TYPE_DEF, WORK_ORDER_ACTION } from '@road-patrol/shared';
 import { WorkOrderService, type UploadedImage } from './work-order.service';
-import { AddWorkOrderDto, DeleteImageDto, UpdateOrderStatusDto, UpdateWorkOrderDto, WorkOrderQueryDto } from './work-order.dto';
+import {
+  AddWorkOrderDto,
+  DeleteImageDto,
+  UpdateOrderStatusDto,
+  UpdateWorkOrderDto,
+  WorkOrderQueryDto
+} from './work-order.dto';
 import { ADD_ORDER_EXAMPLES, UPDATE_STATUS_EXAMPLES } from './work-order.example';
 
 /** 上傳欄位：每個照片類型一個欄位，ZIP 類型另外套壓縮檔規則 */
@@ -79,10 +98,18 @@ export class WorkOrderController {
     ].join('\n')
   })
   @ApiResponse({ status: 200, description: '已更新' })
-  @ApiCommonErrors({ badRequest: '沒有帶任何要更新的欄位', notFound: '找不到派工單', conflict: '已完工的派工單不可修改' })
+  @ApiCommonErrors({
+    badRequest: '沒有帶任何要更新的欄位',
+    notFound: '找不到派工單',
+    conflict: '已完工的派工單不可修改'
+  })
   @Audit({ action: 'WORK_ORDER', keys: ['ID', 'WORKER_USER_ID', 'MATERIAL'] })
   @RequireAction(ACTION.WORK_ORDER.UPDATE)
-  async handleUpdate(@Body() dto: UpdateWorkOrderDto, @User() user: AuthUser, @Req() req: Request): Promise<HttpResult> {
+  async handleUpdate(
+    @Body() dto: UpdateWorkOrderDto,
+    @User() user: AuthUser,
+    @Req() req: Request
+  ): Promise<HttpResult> {
     return await this.workOrderService.update(dto, user, req.ip);
   }
 
@@ -121,7 +148,11 @@ export class WorkOrderController {
     [String(WORK_ORDER_ACTION.RESTORE)]: ACTION.WORK_ORDER.APPROVE,
     [String(WORK_ORDER_ACTION.WITHDRAW)]: ACTION.WORK_ORDER.APPROVE
   })
-  async handleUpdateStatus(@Body() dto: UpdateOrderStatusDto, @User() user: AuthUser, @Req() req: Request): Promise<HttpResult> {
+  async handleUpdateStatus(
+    @Body() dto: UpdateOrderStatusDto,
+    @User() user: AuthUser,
+    @Req() req: Request
+  ): Promise<HttpResult> {
     return await this.workOrderService.updateStatus(dto, user, req.ip);
   }
 
@@ -154,7 +185,9 @@ export class WorkOrderController {
       properties: {
         ID: { type: 'integer', example: 3, description: '派工單 id' },
         IMAGE_DELETE: { type: 'string', example: '["IMG_DURING"]', description: '要刪除的照片類型' },
-        ...Object.fromEntries(IMAGE_TYPE_DEF.map((d) => [d.type, { type: 'string', format: 'binary', description: d.name }]))
+        ...Object.fromEntries(
+          IMAGE_TYPE_DEF.map((d) => [d.type, { type: 'string', format: 'binary', description: d.name }])
+        )
       },
       required: ['ID']
     }
@@ -177,7 +210,12 @@ export class WorkOrderController {
     try {
       deleteTypes = imageDelete ? JSON.parse(imageDelete) : [];
     } catch {
-      deleteTypes = imageDelete ? imageDelete.split(',').map((s) => s.trim()).filter(Boolean) : [];
+      deleteTypes = imageDelete
+        ? imageDelete
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
     }
 
     return await this.workOrderService.uploadImages(id, flat, deleteTypes, user);
@@ -204,7 +242,10 @@ export class WorkOrderController {
 
   /** 刪除照片 */
   @Delete('workorder/image')
-  @ApiOperation({ summary: '刪除派工單照片', description: ['物件儲存上的檔案一併刪除。', '', '所需權限：`WORK_ORDER.UPDATE`'].join('\n') })
+  @ApiOperation({
+    summary: '刪除派工單照片',
+    description: ['物件儲存上的檔案一併刪除。', '', '所需權限：`WORK_ORDER.UPDATE`'].join('\n')
+  })
   @ApiResponse({ status: 200, description: '已刪除' })
   @ApiCommonErrors({ notFound: '找不到該照片' })
   @Audit({ action: 'WORK_ORDER', keys: ['ID', 'IMG_TYPE'] })
@@ -235,7 +276,9 @@ export class WorkOrderController {
   @Get('workorder/:ID')
   @ApiOperation({
     summary: '派工單詳情',
-    description: ['含起訖點座標、取樣資訊、照片清單與缺件、狀態變更者與時間。', '', '所需權限：`WORK_ORDER.READ`'].join('\n')
+    description: ['含起訖點座標、取樣資訊、照片清單與缺件、狀態變更者與時間。', '', '所需權限：`WORK_ORDER.READ`'].join(
+      '\n'
+    )
   })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors({ notFound: '找不到派工單' })

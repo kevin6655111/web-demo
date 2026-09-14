@@ -56,6 +56,30 @@ export class VehicleQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   ONLINE_ONLY?: boolean;
+
+  @ApiPropertyOptional({ example: 'DEMO01', description: '標案號；透過 project_vehicles 關聯比對' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  PRJ_ID?: string;
+
+  @ApiPropertyOptional({ example: 1, description: '工務段；經由標案的工務段關聯比對' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  SECTION_ID?: number;
+
+  @ApiPropertyOptional({ example: '示範市', maxLength: 10, description: '縣市；經由工務段轄區比對' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  COUNTY?: string;
+
+  @ApiPropertyOptional({ example: '西屯區', maxLength: 10, description: '行政區；經由工務段轄區比對' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  DISTRICT?: string;
 }
 
 export class UpsertVehicleDto {

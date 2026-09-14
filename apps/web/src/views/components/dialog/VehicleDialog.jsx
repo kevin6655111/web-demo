@@ -34,8 +34,14 @@ export default function VehicleDialog({ open, row, onClose, onSaved }) {
     setErrors({});
     setError('');
 
-    authApi.orgUsers().then((res) => setUsers((res.data ?? []).filter((u) => u.ACTIVE))).catch(() => {});
-    projectApi.list().then((res) => setProjects(res.data ?? [])).catch(() => {});
+    authApi
+      .orgUsers()
+      .then((res) => setUsers((res.data ?? []).filter((u) => u.ACTIVE)))
+      .catch(() => {});
+    projectApi
+      .list()
+      .then((res) => setProjects(res.data ?? []))
+      .catch(() => {});
   }, [open, row]);
 
   const fields = [
@@ -49,8 +55,18 @@ export default function VehicleDialog({ open, row, onClose, onSaved }) {
       options: Object.entries(VEHICLE_TYPE_LABEL).map(([value, label]) => ({ value, label }))
     },
     { key: 'DEVICE_ID', label: '車機識別碼', placeholder: 'DEV-0005', hint: '車機用它認自己；換車牌不影響' },
-    { key: 'DRIVER_ID', label: '駕駛', type: 'select', options: users.map((u) => ({ value: String(u.ID), label: u.USER_NAME })) },
-    { key: 'PROJECT_ID', label: '所屬標案', type: 'select', options: projects.map((p) => ({ value: String(p.ID), label: p.CODE })) },
+    {
+      key: 'DRIVER_ID',
+      label: '駕駛',
+      type: 'select',
+      options: users.map((u) => ({ value: String(u.ID), label: u.USER_NAME }))
+    },
+    {
+      key: 'PROJECT_ID',
+      label: '所屬標案',
+      type: 'select',
+      options: projects.map((p) => ({ value: String(p.ID), label: p.CODE }))
+    },
     {
       key: 'STATE',
       label: '狀態',

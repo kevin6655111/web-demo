@@ -66,5 +66,9 @@ export const UPDATE_STATUS_EXAMPLES: SwaggerExamples = {
   start: { summary: '開始施工', value: { ID: 3, STATUS: 1 } },
   report: { summary: '回報完工', description: '照片要在此之前上傳', value: { ID: 3, STATUS: 2 } },
   finish: { summary: '驗收完工', description: '會檢查必要照片是否齊全', value: { ID: 3, STATUS: 3 } },
-  reject: { summary: '退回重做', description: '設回待處理並填退回原因；來源案件回到「觀察中」', value: { ID: 3, STATUS: 0, REJECT_REASON: '邊緣未壓實' } }
+  reject: {
+    summary: '退回重做',
+    description: '設回待處理並填退回原因；來源案件回到「觀察中」',
+    value: { ID: 3, STATUS: 0, REJECT_REASON: '邊緣未壓實' }
+  }
 };

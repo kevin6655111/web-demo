@@ -106,7 +106,14 @@ export default function ImageUploadField({ orderId, canEdit = true, onChanged, a
       {groups.map((group) => (
         <FormSection key={group.GROUP} title={group.GROUP} subtitle={`${group.TYPES.length} 張`} minWidth={210} dense>
           {group.TYPES.map((slot) => (
-            <ImageSlot key={slot.TYPE} slot={slot} canEdit={canEdit} uploading={uploading === slot.TYPE} onPick={pick} onRemove={remove} />
+            <ImageSlot
+              key={slot.TYPE}
+              slot={slot}
+              canEdit={canEdit}
+              uploading={uploading === slot.TYPE}
+              onPick={pick}
+              onRemove={remove}
+            />
           ))}
         </FormSection>
       ))}

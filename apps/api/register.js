@@ -9,7 +9,14 @@ const tsConfigPaths = require('tsconfig-paths');
 const raw = fs.readFileSync(path.join(__dirname, 'tsconfig.json'), 'utf8');
 const config = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, ''));
 
-tsConfigPaths.register({
-  baseUrl: path.join(__dirname, 'dist'),
-  paths: config.compilerOptions.paths
-});
+// tsconfig 的 paths 以自己所在目錄為基準指向 ./src(TypeScript 7 起不能再靠 baseUrl)，
+// 執行的卻是編譯產物。dist 與 src 的目錄結構一致，換掉前綴就對得上；
+// 兩邊共用同一份定義，才不會加了別名卻忘記同步而在正式環境才炸。
+const paths = Object.fromEntries(
+  Object.entries(config.compilerOptions.paths).map(([alias, targets]) => [
+    alias,
+    targets.map((target) => target.replace(/^\.\/src\//, './dist/'))
+  ])
+);
+
+tsConfigPaths.register({ baseUrl: __dirname, paths });

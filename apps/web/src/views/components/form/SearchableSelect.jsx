@@ -43,7 +43,15 @@ export default function SearchableSelect({
     if (!keyword.trim()) return options;
 
     const kw = keyword.trim().toLowerCase();
-    return options.filter((o) => String(o.label ?? '').toLowerCase().includes(kw) || String(o.value ?? '').toLowerCase().includes(kw));
+    return options.filter(
+      (o) =>
+        String(o.label ?? '')
+          .toLowerCase()
+          .includes(kw) ||
+        String(o.value ?? '')
+          .toLowerCase()
+          .includes(kw)
+    );
   }, [options, keyword]);
 
   const selected = multiple ? (Array.isArray(value) ? value : []) : (value ?? '');
@@ -61,7 +69,12 @@ export default function SearchableSelect({
       return (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {v.map((s) => (
-            <Chip key={s} size="small" label={options.find((o) => String(o.value) === String(s))?.label ?? s} sx={{ height: 18, fontSize: 10 }} />
+            <Chip
+              key={s}
+              size="small"
+              label={options.find((o) => String(o.value) === String(s))?.label ?? s}
+              sx={{ height: 18, fontSize: 10 }}
+            />
           ))}
         </Box>
       );

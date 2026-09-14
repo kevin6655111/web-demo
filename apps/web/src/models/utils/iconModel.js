@@ -8,7 +8,10 @@ import {
   MdLayers,
   MdMyLocation,
   MdOutlineStraighten,
-  MdFullscreen
+  MdFullscreen,
+  MdFactCheck,
+  MdRule,
+  MdPayments
 } from 'react-icons/md';
 // react-icons 的 fa6 沒有 FaCarAlt / FaEdit(那是 fa5 的名稱)，
 // 這裡各取所需，不為了統一而硬湊
@@ -59,6 +62,9 @@ const ICONS = {
   MdMyLocation,
   MdOutlineStraighten,
   MdFullscreen,
+  MdFactCheck,
+  MdRule,
+  MdPayments,
   FaLayerGroup
 };
 

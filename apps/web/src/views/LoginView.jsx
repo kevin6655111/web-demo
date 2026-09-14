@@ -37,8 +37,18 @@ export default function LoginView() {
         </Stack>
 
         <Stack spacing={2}>
-          <TextField label="公司代號" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} fullWidth />
-          <TextField label="帳號" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} fullWidth />
+          <TextField
+            label="公司代號"
+            value={form.company}
+            onChange={(e) => setForm({ ...form, company: e.target.value })}
+            fullWidth
+          />
+          <TextField
+            label="帳號"
+            value={form.account}
+            onChange={(e) => setForm({ ...form, account: e.target.value })}
+            fullWidth
+          />
           <TextField
             label="密碼"
             type="password"

@@ -109,7 +109,13 @@ export class RoadEvalController {
       '所需權限：`ROAD_EVAL.UPDATE`'
     ].join('\n')
   })
-  @ApiBody({ type: SegmentEvalDto, examples: { all: { summary: '全部路段', value: {} }, byProject: { summary: '只算某標案', value: { PROJECT_ID: 1 } } } })
+  @ApiBody({
+    type: SegmentEvalDto,
+    examples: {
+      all: { summary: '全部路段', value: {} },
+      byProject: { summary: '只算某標案', value: { PROJECT_ID: 1 } }
+    }
+  })
   @ApiResponse({ status: 201, description: '評估完成，回傳更新筆數' })
   @ApiCommonErrors()
   @Audit({ action: 'ROAD_EVAL', keys: ['PROJECT_ID'] })

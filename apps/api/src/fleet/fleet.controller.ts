@@ -6,6 +6,7 @@ import { Idempotent } from '@decorators/idempotent.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
+import { AllowApiKey } from '@decorators/api-key.decorator';
 import { API_AUTH } from '@/util/app-swagger';
 import { FleetService } from './fleet.service';
 import { AddTrackDto, TrackQueryDto, TrackStatsQueryDto, UpsertVehicleDto, VehicleQueryDto } from './fleet.dto';
@@ -45,7 +46,10 @@ export class FleetController {
   @ApiBody({
     type: UpsertVehicleDto,
     examples: {
-      create: { summary: '新增巡查車', value: { PLATE_NO: 'ABC-1234', NAME: '巡查一號車', VEHICLE_TYPE: 'PATROL', DEVICE_ID: 'DEV-0001' } },
+      create: {
+        summary: '新增巡查車',
+        value: { PLATE_NO: 'ABC-1234', NAME: '巡查一號車', VEHICLE_TYPE: 'PATROL', DEVICE_ID: 'DEV-0001' }
+      },
       update: { summary: '指派駕駛', value: { ID: 1, PLATE_NO: 'ABC-1234', VEHICLE_TYPE: 'PATROL', DRIVER_ID: 3 } }
     }
   })
@@ -75,14 +79,32 @@ export class FleetController {
     examples: {
       moving: {
         summary: '行進中',
-        value: { DEVICE_ID: 'DEV-0001', LNG: 120.6478, LAT: 24.1636, RECORDED_AT: '2026-08-29T09:12:00+08:00', SPEED_KPH: 32.5, HEADING: 180, GPS_HDOP: 0.8 }
+        value: {
+          DEVICE_ID: 'DEV-0001',
+          LNG: 120.6478,
+          LAT: 24.1636,
+          RECORDED_AT: '2026-08-29T09:12:00+08:00',
+          SPEED_KPH: 32.5,
+          HEADING: 180,
+          GPS_HDOP: 0.8
+        }
       },
-      tripStart: { summary: '一趟行程的起點', value: { DEVICE_ID: 'DEV-0001', LNG: 120.64, LAT: 24.16, RECORDED_AT: '2026-08-29T08:00:00+08:00', IS_TRIP_START: true } }
+      tripStart: {
+        summary: '一趟行程的起點',
+        value: {
+          DEVICE_ID: 'DEV-0001',
+          LNG: 120.64,
+          LAT: 24.16,
+          RECORDED_AT: '2026-08-29T08:00:00+08:00',
+          IS_TRIP_START: true
+        }
+      }
     }
   })
   @ApiResponse({ status: 201, description: '已接收' })
   @ApiCommonErrors({ notFound: '找不到該車機識別碼對應的車輛' })
   @Idempotent(120)
+  @AllowApiKey()
   @RequireAction(ACTION.TRACK.CREATE)
   async handleAddTrack(@Body() dto: AddTrackDto, @User() user: AuthUser): Promise<HttpResult> {
     return await this.fleetService.addTrack(dto, user.companyId);

@@ -78,7 +78,19 @@ export function MapProvider({ children }) {
       fitKey,
       fitTo
     }),
-    [ordered, layers, registerLayer, removeLayer, toggleLayer, setLayerOpacity, setLayerMode, basemap, street, fitKey, fitTo]
+    [
+      ordered,
+      layers,
+      registerLayer,
+      removeLayer,
+      toggleLayer,
+      setLayerOpacity,
+      setLayerMode,
+      basemap,
+      street,
+      fitKey,
+      fitTo
+    ]
   );
 
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>;

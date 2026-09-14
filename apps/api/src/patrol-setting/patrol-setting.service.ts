@@ -98,15 +98,18 @@ export class PatrolSettingService {
     };
 
     const id = dto.ID
-      ? ((await this.planRepo.update({ id: dto.ID, company: { id: companyId } }, payload)).affected
-          ? dto.ID
-          : (() => {
-              throw new NotFoundException(`找不到計畫：${dto.ID}`);
-            })())
+      ? (await this.planRepo.update({ id: dto.ID, company: { id: companyId } }, payload)).affected
+        ? dto.ID
+        : (() => {
+            throw new NotFoundException(`找不到計畫：${dto.ID}`);
+          })()
       : (await this.planRepo.save(this.planRepo.create(payload))).id;
 
     // 長度交給資料庫算：前端算出來的公里數在不同投影下會差好幾個百分點
-    await this.planRepo.query(`UPDATE patrol_plans SET route_km = ROUND((ST_Length(route) / 1000)::numeric, 2) WHERE id = $1`, [id]);
+    await this.planRepo.query(
+      `UPDATE patrol_plans SET route_km = ROUND((ST_Length(route) / 1000)::numeric, 2) WHERE id = $1`,
+      [id]
+    );
 
     return HttpResponse.success({ message: dto.ID ? '計畫已更新' : '計畫已建立', data: { ID: id } });
   }

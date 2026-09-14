@@ -128,7 +128,10 @@ export default function ImageViewer({ open, images = [], initialIndex = 0, title
   const onMove = (e) => {
     if (!dragging) return;
 
-    setOffset({ x: dragRef.current.ox + (e.clientX - dragRef.current.x), y: dragRef.current.oy + (e.clientY - dragRef.current.y) });
+    setOffset({
+      x: dragRef.current.ox + (e.clientX - dragRef.current.x),
+      y: dragRef.current.oy + (e.clientY - dragRef.current.y)
+    });
   };
 
   const heading = current?.title ?? title ?? '檢視圖片';
@@ -161,7 +164,12 @@ export default function ImageViewer({ open, images = [], initialIndex = 0, title
             />
           )}
 
-          <Chip size="small" variant="outlined" label={`${Math.round(scale * 100)}%`} sx={{ color: '#e2e8f0', borderColor: 'rgba(226,232,240,0.4)' }} />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`${Math.round(scale * 100)}%`}
+            sx={{ color: '#e2e8f0', borderColor: 'rgba(226,232,240,0.4)' }}
+          />
 
           <Box sx={{ flex: 1 }} />
 
@@ -181,7 +189,15 @@ export default function ImageViewer({ open, images = [], initialIndex = 0, title
             </IconButton>
           </Tooltip>
           <Tooltip title="下載">
-            <IconButton size="small" sx={{ color: '#e2e8f0' }} aria-label="下載" component="a" href={current.url} target="_blank" rel="noopener">
+            <IconButton
+              size="small"
+              sx={{ color: '#e2e8f0' }}
+              aria-label="下載"
+              component="a"
+              href={current.url}
+              target="_blank"
+              rel="noopener"
+            >
               <DownloadIcon />
             </IconButton>
           </Tooltip>
@@ -265,7 +281,12 @@ export default function ImageViewer({ open, images = [], initialIndex = 0, title
                   outline: i === index ? '2px solid #38bdf8' : '1px solid rgba(226,232,240,0.25)'
                 }}
               >
-                <Box component="img" src={img.url} alt={img.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <Box
+                  component="img"
+                  src={img.url}
+                  alt={img.title}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
               </Box>
             ))}
           </Stack>

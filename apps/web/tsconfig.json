@@ -7,11 +7,7 @@
     "jsx": "react-jsx",
     "allowJs": true,
     "strict": false,
-    "noEmit": true,
-    "baseUrl": "./src",
-    "paths": {
-      "@/*": ["*"]
-    }
+    "noEmit": true
   },
   "include": ["src"]
 }

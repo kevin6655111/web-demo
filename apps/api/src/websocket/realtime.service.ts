@@ -9,7 +9,15 @@ const PRESENCE_TTL_MS = 60_000;
 const LOCATION_TTL_MS = 120_000;
 const LOCK_TTL_MS = 120_000;
 
-export type FleetPoint = { uid: number; name: string; lng: number; lat: number; speedKph?: number; heading?: number; at: number };
+export type FleetPoint = {
+  uid: number;
+  name: string;
+  lng: number;
+  lat: number;
+  speedKph?: number;
+  heading?: number;
+  at: number;
+};
 
 /**
  * 即時互動的狀態層。
@@ -39,7 +47,14 @@ export class RealtimeService {
       this.messageRepo.create({ patrolCase: { id: caseId }, sender: { id: user.uid }, body: trimmed })
     );
 
-    return { ID: saved.id, CASE_ID: caseId, SENDER: user.name, SENDER_UID: user.uid, BODY: trimmed, CREATED_AT: saved.createdAt };
+    return {
+      ID: saved.id,
+      CASE_ID: caseId,
+      SENDER: user.name,
+      SENDER_UID: user.uid,
+      BODY: trimmed,
+      CREATED_AT: saved.createdAt
+    };
   }
 
   /** 取最近的訊息(進入討論串時回補) */
@@ -53,7 +68,14 @@ export class RealtimeService {
 
     return rows
       .reverse() // 查詢用倒序取最新，回傳前轉正序，前端不必再排一次
-      .map((m) => ({ ID: m.id, CASE_ID: caseId, SENDER: m.sender?.name ?? '(已刪除)', SENDER_UID: m.sender?.id ?? null, BODY: m.body, CREATED_AT: m.createdAt }));
+      .map((m) => ({
+        ID: m.id,
+        CASE_ID: caseId,
+        SENDER: m.sender?.name ?? '(已刪除)',
+        SENDER_UID: m.sender?.id ?? null,
+        BODY: m.body,
+        CREATED_AT: m.createdAt
+      }));
   }
 
   // ─── 線上狀態 ───────────────────────────────────────────────────
@@ -101,9 +123,17 @@ export class RealtimeService {
    * 這是「提醒」而不是強制：後端仍然以資料庫約束為準 ——
    * 前端鎖只是讓兩個人不要同時打字，不能拿來當正確性的保證。
    */
-  public async acquireLock(companyId: number, resource: string, user: AuthUser): Promise<{ granted: boolean; holder?: string }> {
+  public async acquireLock(
+    companyId: number,
+    resource: string,
+    user: AuthUser
+  ): Promise<{ granted: boolean; holder?: string }> {
     const key = `editlock:${companyId}:${resource}`;
-    const granted = await this.redisService.acquire(key, LOCK_TTL_MS, JSON.stringify({ uid: user.uid, name: user.name }));
+    const granted = await this.redisService.acquire(
+      key,
+      LOCK_TTL_MS,
+      JSON.stringify({ uid: user.uid, name: user.name })
+    );
 
     if (granted) return { granted: true };
 

@@ -44,6 +44,23 @@ export class SegmentQueryDto {
   @Type(() => Number)
   @IsInt()
   PROJECT_ID?: number;
+  @ApiPropertyOptional({ example: 'DEMO01', maxLength: 10, description: '標案號' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  PRJ_ID?: string;
+
+  @ApiPropertyOptional({ example: 1, description: '工務段；經由標案的工務段關聯比對' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  SECTION_ID?: number;
+
+  @ApiPropertyOptional({ example: '示範市', maxLength: 10, description: '縣市；經由工務段轄區比對' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  COUNTY?: string;
 }
 
 export class UpdateSegmentDto {

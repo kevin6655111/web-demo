@@ -71,7 +71,12 @@ describe('IdempotencyInterceptor', () => {
 
   it('第一次請求會實際執行 handler', async () => {
     let calls = 0;
-    const next = { handle: () => { calls += 1; return of({ ID: 7, DUPLICATED: false }); } };
+    const next = {
+      handle: () => {
+        calls += 1;
+        return of({ ID: 7, DUPLICATED: false });
+      }
+    };
 
     const result = await firstValueFrom(interceptor.intercept(makeContext(body, 'K1'), next as any));
 
@@ -81,7 +86,12 @@ describe('IdempotencyInterceptor', () => {
 
   it('相同 key 重送時回放結果，不再執行 handler', async () => {
     let calls = 0;
-    const next = { handle: () => { calls += 1; return of({ ID: 7 }); } };
+    const next = {
+      handle: () => {
+        calls += 1;
+        return of({ ID: 7 });
+      }
+    };
 
     const ctx = makeContext(body, 'K1');
     await firstValueFrom(interceptor.intercept(ctx, next as any));
@@ -102,11 +112,18 @@ describe('IdempotencyInterceptor', () => {
 
   it('handler 失敗時要放掉鎖，讓上游可以重試', async () => {
     const failing = { handle: () => throwError(() => new Error('DB down')) };
-    await expect(firstValueFrom(interceptor.intercept(makeContext(body, 'K1'), failing as any))).rejects.toThrow('DB down');
+    await expect(firstValueFrom(interceptor.intercept(makeContext(body, 'K1'), failing as any))).rejects.toThrow(
+      'DB down'
+    );
 
     // 鎖已釋放：同一把 key 重送會真的再跑一次，而不是卡在 409
     let calls = 0;
-    const ok = { handle: () => { calls += 1; return of({ ID: 7 }); } };
+    const ok = {
+      handle: () => {
+        calls += 1;
+        return of({ ID: 7 });
+      }
+    };
     await firstValueFrom(interceptor.intercept(makeContext(body, 'K1'), ok as any));
 
     expect(calls).toBe(1);
@@ -114,7 +131,12 @@ describe('IdempotencyInterceptor', () => {
 
   it('沒帶 Idempotency-Key 時退回用 body 雜湊去重', async () => {
     let calls = 0;
-    const next = { handle: () => { calls += 1; return of({ ID: 7 }); } };
+    const next = {
+      handle: () => {
+        calls += 1;
+        return of({ ID: 7 });
+      }
+    };
 
     await firstValueFrom(interceptor.intercept(makeContext(body), next as any));
     await firstValueFrom(interceptor.intercept(makeContext(body), next as any));
@@ -134,7 +156,12 @@ describe('IdempotencyInterceptor', () => {
     } as unknown as ExecutionContext;
 
     let calls = 0;
-    const next = { handle: () => { calls += 1; return of('ok'); } };
+    const next = {
+      handle: () => {
+        calls += 1;
+        return of('ok');
+      }
+    };
 
     await firstValueFrom(interceptor.intercept(ctx, next as any));
     await firstValueFrom(interceptor.intercept(ctx, next as any));

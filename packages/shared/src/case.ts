@@ -20,6 +20,46 @@ export const CRACK_TYPE_DEF = [
 
 export type CrackTypeKey = (typeof CRACK_TYPE_DEF)[number]['key'];
 
+/**
+ * 破壞類型的別名。
+ *
+ * 不同世代的車機與不同縣市的判讀模型，輸出的類型字串不一樣：
+ * 舊車機送 `pothole`、有的模型送中文、臺北格式送 `Manhole`。
+ * 進系統時一律轉成 `CRACK_TYPE_DEF` 的 key —— 否則同一種破壞在統計上會被拆成三種。
+ * 查不到別名時保留原值並讓驗證擋下，不要猜。
+ */
+export const CRACK_TYPE_ALIAS: Record<string, CrackTypeKey> = {
+  pothole: 'Potholes',
+  potholes: 'Potholes',
+  坑洞: 'Potholes',
+  manhole: 'Cover',
+  Manhole: 'Cover',
+  cover: 'Cover',
+  人手孔: 'Cover',
+  patch: 'Patch',
+  補綻: 'Patch',
+  crack: 'Cracking',
+  cracking: 'Cracking',
+  linear_crack: 'Cracking',
+  線狀裂縫: 'Cracking',
+  alligator: 'Alligator_Cracking',
+  alligator_cracking: 'Alligator_Cracking',
+  龜裂: 'Alligator_Cracking',
+  鱷魚狀裂縫: 'Alligator_Cracking',
+  rutting: 'Rutting',
+  車轍: 'Rutting',
+  subsidence: 'Subsidence',
+  路基下陷: 'Subsidence'
+};
+
+/** 把車機送來的類型字串正規化成系統代碼；認不得的原樣回傳 */
+export function normalizeCrackType(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  if (CRACK_TYPE_DEF.some((d) => d.key === trimmed)) return trimmed;
+  return CRACK_TYPE_ALIAS[trimmed] ?? CRACK_TYPE_ALIAS[trimmed.toLowerCase()] ?? trimmed;
+}
+
 /** 破壞程度：A 最嚴重 */
 export const DEGREE_DEF = [
   { key: 'A', name: '嚴重' },

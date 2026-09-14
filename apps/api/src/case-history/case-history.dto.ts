@@ -5,7 +5,11 @@ import { CASE_TYPE } from './entities/case-history.entity';
 
 /** 五種實體共用同一套歷程 API，用這個欄位指定看的是哪一種 */
 export class CaseTypeDto {
-  @ApiProperty({ enum: CASE_TYPE, example: 'CASE_PATROL', description: '實體類型：破壞案件／巡查單／派工單／標案／檢測案件' })
+  @ApiProperty({
+    enum: CASE_TYPE,
+    example: 'CASE_PATROL',
+    description: '實體類型：破壞案件／巡查單／派工單／標案／檢測案件'
+  })
   @IsIn(CASE_TYPE as unknown as string[])
   CASE_TYPE!: string;
 }

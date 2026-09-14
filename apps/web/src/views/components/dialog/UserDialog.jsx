@@ -30,8 +30,20 @@ export default function UserDialog({ open, row, roles = [], onClose, onSaved }) 
   const createFields = [
     { key: 'ACCOUNT', label: '帳號', required: true, placeholder: 'inspector02' },
     { key: 'USER_NAME', label: '姓名', required: true },
-    { key: 'PASSWORD', label: '密碼', type: 'password', required: true, hint: '至少 8 碼、混合字母與數字、不可包含帳號' },
-    { key: 'ROLE_KEY', label: '角色', type: 'select', required: true, options: roles.map((r) => ({ value: r.KEY, label: r.NAME })) }
+    {
+      key: 'PASSWORD',
+      label: '密碼',
+      type: 'password',
+      required: true,
+      hint: '至少 8 碼、混合字母與數字、不可包含帳號'
+    },
+    {
+      key: 'ROLE_KEY',
+      label: '角色',
+      type: 'select',
+      required: true,
+      options: roles.map((r) => ({ value: r.KEY, label: r.NAME }))
+    }
   ];
 
   const editFields = [{ key: 'ACTIVE', label: '啟用此帳號', type: 'switch', full: true }];

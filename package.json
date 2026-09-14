@@ -8,12 +8,13 @@
     "e2e"
   ],
   "scripts": {
-    "start": "yarn build:shared && concurrently -n web,api,tiles,worker,report,sched -c cyan,green,blue,yellow,magenta,gray \"yarn web\" \"yarn api\" \"yarn tiles\" \"yarn worker\" \"yarn report-worker\" \"yarn scheduler\"",
+    "start": "yarn build:shared && concurrently -n web,api,tiles,case,report,mail,sched -c cyan,green,blue,yellow,magenta,white,gray \"yarn web\" \"yarn api\" \"yarn tiles\" \"yarn case-worker\" \"yarn report-worker\" \"yarn mail-worker\" \"yarn scheduler\"",
     "web": "yarn workspace @road-patrol/web dev",
     "api": "yarn workspace @road-patrol/api dev",
     "tiles": "yarn workspace @road-patrol/api dev:tiles",
-    "worker": "yarn workspace @road-patrol/api dev:worker",
+    "case-worker": "yarn workspace @road-patrol/api dev:case-worker",
     "report-worker": "yarn workspace @road-patrol/api dev:report-worker",
+    "mail-worker": "yarn workspace @road-patrol/api dev:mail-worker",
     "scheduler": "yarn workspace @road-patrol/api dev:scheduler",
     "build:shared": "yarn workspace @road-patrol/shared build",
     "build": "yarn build:shared && concurrently \"yarn build:web\" \"yarn build:api\"",
@@ -22,6 +23,8 @@
     "build:api:prod": "yarn build:shared && yarn build:api && yarn protect",
     "protect": "node scripts/protect.js",
     "typecheck": "yarn build:shared && concurrently \"yarn workspace @road-patrol/api typecheck\" \"yarn workspace @road-patrol/web typecheck\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "yarn build:shared && yarn workspace @road-patrol/web test",
     "test:api": "yarn build:shared && yarn workspace @road-patrol/api test",
     "test:e2e": "yarn workspace @road-patrol/e2e test",
@@ -30,12 +33,14 @@
     "seed:images": "yarn workspace @road-patrol/api seed:images",
     "migrate:create": "yarn workspace @road-patrol/api migrate:create",
     "migrate:revert": "yarn workspace @road-patrol/api migrate:revert",
-    "docs": "curl -sf http://localhost:3008/api-docs-json -o docs/openapi.json"
+    "docs": "curl -sf http://localhost:3008/api-docs-json -o docs/openapi.json",
+    "seq:stress": "yarn workspace @road-patrol/api seq:stress"
   },
   "devDependencies": {
+    "@types/node": "^22.10.1",
     "concurrently": "^9.1.0",
     "javascript-obfuscator": "^5.6.0",
-    "typescript": "^5.7.2",
-    "@types/node": "^22.10.1"
+    "prettier": "^3",
+    "typescript": "^5.7.2"
   }
 }

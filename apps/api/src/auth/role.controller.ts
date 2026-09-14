@@ -35,7 +35,9 @@ export class RoleController {
   @Get('auth/role')
   @ApiOperation({
     summary: '角色清單',
-    description: ['一併回傳每個角色的使用人數 —— 調整權限前要先知道會影響誰。', '', '所需權限：`ACCOUNT.READ`'].join('\n')
+    description: ['一併回傳每個角色的使用人數 —— 調整權限前要先知道會影響誰。', '', '所需權限：`ACCOUNT.READ`'].join(
+      '\n'
+    )
   })
   @ApiResponse({ status: 200, description: '查詢成功' })
   @ApiCommonErrors()
@@ -48,12 +50,19 @@ export class RoleController {
   @Post('auth/role')
   @ApiOperation({
     summary: '新增角色',
-    description: ['`ACTIONS` 必須全部來自權限總表，有未知權限會整批拒絕(避免打錯字造成的無聲失效)。', '', '所需權限：`ACCOUNT.CREATE`'].join('\n')
+    description: [
+      '`ACTIONS` 必須全部來自權限總表，有未知權限會整批拒絕(避免打錯字造成的無聲失效)。',
+      '',
+      '所需權限：`ACCOUNT.CREATE`'
+    ].join('\n')
   })
   @ApiBody({
     type: CreateRoleDto,
     examples: {
-      supervisor: { summary: '工地主任(可驗收)', value: { KEY: 'SUPERVISOR', NAME: '工地主任', ACTIONS: ['CASE.READ', 'WORK_ORDER.READ', 'WORK_ORDER.ACCEPT'] } }
+      supervisor: {
+        summary: '工地主任(可驗收)',
+        value: { KEY: 'SUPERVISOR', NAME: '工地主任', ACTIONS: ['CASE.READ', 'WORK_ORDER.READ', 'WORK_ORDER.ACCEPT'] }
+      }
     }
   })
   @ApiResponse({ status: 201, description: '角色已建立' })
@@ -79,7 +88,12 @@ export class RoleController {
   })
   @ApiBody({
     type: UpdateRoleActionsDto,
-    examples: { readonly: { summary: '收回寫入權限', value: { ID: 3, ACTIONS: ['CASE.READ', 'WORK_ORDER.READ', 'DASHBOARD.READ'] } } }
+    examples: {
+      readonly: {
+        summary: '收回寫入權限',
+        value: { ID: 3, ACTIONS: ['CASE.READ', 'WORK_ORDER.READ', 'DASHBOARD.READ'] }
+      }
+    }
   })
   @ApiResponse({ status: 200, description: '權限已更新' })
   @ApiCommonErrors({ badRequest: '參數錯誤: 含未知的權限字串', notFound: '找不到該角色' })

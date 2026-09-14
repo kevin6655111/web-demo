@@ -34,8 +34,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : ((payload as any)?.message ?? (exception instanceof Error ? exception.message : 'Server error'));
 
     // 5xx 記完整堆疊，4xx 只記一行：預期內的錯不該淹沒日誌
-    if (code >= 500) this.logger.error(`[${req.method}] ${req.path} → ${code}`, exception instanceof Error ? exception.stack : undefined);
-    else this.logger.warn(`[${req.method}] ${req.path} → ${code} ${Array.isArray(message) ? message.join('; ') : message}`);
+    if (code >= 500)
+      this.logger.error(
+        `[${req.method}] ${req.path} → ${code}`,
+        exception instanceof Error ? exception.stack : undefined
+      );
+    else
+      this.logger.warn(
+        `[${req.method}] ${req.path} → ${code} ${Array.isArray(message) ? message.join('; ') : message}`
+      );
 
     res.status(code).json(HttpResponse.error({ code, message: Array.isArray(message) ? message.join('; ') : message }));
   }

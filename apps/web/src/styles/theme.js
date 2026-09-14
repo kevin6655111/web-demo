@@ -84,7 +84,10 @@ export function createAppTheme(mode = 'dark') {
         }
       },
       MuiChip: { styleOverrides: { root: { fontWeight: 500 } } },
-      MuiButton: { defaultProps: { disableElevation: true }, styleOverrides: { root: { textTransform: 'none', fontWeight: 500 } } }
+      MuiButton: {
+        defaultProps: { disableElevation: true },
+        styleOverrides: { root: { textTransform: 'none', fontWeight: 500 } }
+      }
     }
   });
 }

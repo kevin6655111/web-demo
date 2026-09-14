@@ -199,7 +199,9 @@ function CasePoint({ feature, onSelect }) {
                 sx={{ height: 20, fontSize: 11, borderColor: DEGREE_COLOR[p.degree] }}
               />
             )}
-            {p.area !== undefined && <Chip size="small" label={`${Number(p.area).toFixed(2)} m²`} sx={{ height: 20, fontSize: 11 }} />}
+            {p.area !== undefined && (
+              <Chip size="small" label={`${Number(p.area).toFixed(2)} m²`} sx={{ height: 20, fontSize: 11 }} />
+            )}
           </Stack>
 
           <Typography variant="body2">{p.roadName ?? p.address ?? '定位中…'}</Typography>

@@ -40,7 +40,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const headerKey = (req.headers['idempotency-key'] as string | undefined)?.trim();
 
     // 沒帶表頭就退回用 body 內容雜湊：讓沒改造過的上游也有基本保護
-    const bodyHash = createHash('sha256').update(JSON.stringify(req.body ?? {})).digest('hex');
+    const bodyHash = createHash('sha256')
+      .update(JSON.stringify(req.body ?? {}))
+      .digest('hex');
     const scope = `${req.user?.companyId ?? 'anon'}:${req.path}`;
     const key = `idem:${scope}:${headerKey ?? bodyHash}`;
 

@@ -195,7 +195,8 @@ export class CaseGateway implements OnGatewayConnection, OnGatewayDisconnect {
       case 'lock.acquire': {
         const result = await this.realtimeService.acquireLock(session.user.companyId, msg.resource, session.user);
         this.send(session.socket, { type: 'lock.result', data: { resource: msg.resource, ...result } });
-        if (result.granted) this.broadcast(session.user.companyId, 'lock.taken', { resource: msg.resource, holder: session.user.name });
+        if (result.granted)
+          this.broadcast(session.user.companyId, 'lock.taken', { resource: msg.resource, holder: session.user.name });
         break;
       }
 

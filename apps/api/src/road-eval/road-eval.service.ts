@@ -101,10 +101,14 @@ export class RoadEvalService {
 
     // 補齊沒有資料的等級：圓餅圖少一塊會讓人以為漏了
     const byLevel = new Map(rows.map((r) => [r.LEVEL, r]));
-    const data = MAINTAIN_LEVEL.map((level) => byLevel.get(level) ?? { LEVEL: level, COUNT: 0, LENGTH_KM: 0, AVG_PCI: 0 });
+    const data = MAINTAIN_LEVEL.map(
+      (level) => byLevel.get(level) ?? { LEVEL: level, COUNT: 0, LENGTH_KM: 0, AVG_PCI: 0 }
+    );
 
     const total = data.reduce((sum, d) => sum + d.COUNT, 0);
-    const needRepair = data.filter((d) => d.LEVEL === 'POOR' || d.LEVEL === 'CRITICAL').reduce((sum, d) => sum + d.COUNT, 0);
+    const needRepair = data
+      .filter((d) => d.LEVEL === 'POOR' || d.LEVEL === 'CRITICAL')
+      .reduce((sum, d) => sum + d.COUNT, 0);
 
     return HttpResponse.success({
       data: {
@@ -203,6 +207,34 @@ export class RoadEvalService {
     if (dto.PCI_MIN !== undefined) qb.andWhere('s.pci >= :pciMin', { pciMin: dto.PCI_MIN });
     if (dto.PCI_MAX !== undefined) qb.andWhere('s.pci <= :pciMax', { pciMax: dto.PCI_MAX });
     if (dto.PROJECT_ID) qb.andWhere('s.project_id = :projectId', { projectId: dto.PROJECT_ID });
+
+    // 標案以代碼比對而非內部 id：查詢面板的下拉送的是 PRJ_ID，
+    // 使用者在畫面上看到與說出的也是那組代碼
+    if (dto.PRJ_ID) {
+      qb.andWhere('EXISTS (SELECT 1 FROM projects prj WHERE prj.id = s.project_id AND prj.prj_id = :scopePrjId)', {
+        scopePrjId: dto.PRJ_ID
+      });
+    }
+
+    // 工務段與轄區都掛在「標案-工務段」之下：同一個工務段在不同標案
+    // 負責的行政區可以不同，所以要從標案這一端往下找
+    if (dto.SECTION_ID) {
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM project_sections ps
+                  WHERE ps.project_id = s.project_id AND ps.is_active = true AND ps.section_id = :scopeSectionId)`,
+        { scopeSectionId: dto.SECTION_ID }
+      );
+    }
+
+    if (dto.COUNTY) {
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM project_sections ps
+                   JOIN section_areas sa ON sa.project_section_id = ps.id AND sa.is_active = true
+                   JOIN areas ar ON ar.id = sa.area_id
+                  WHERE ps.project_id = s.project_id AND ps.is_active = true AND ar.county = :scopeCounty)`,
+        { scopeCounty: dto.COUNTY }
+      );
+    }
 
     return qb;
   }
