@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { HttpResponse, type HttpResult } from '@/http/http-response';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { LocationService } from './location.service';
 import { AutoCompleteDto, ForwardGeocodeDto, ReverseGeocodeDto } from './location.dto';
 

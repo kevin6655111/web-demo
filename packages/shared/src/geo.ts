@@ -39,6 +39,35 @@ export const VEHICLE_COMM_STATE_DEF = [
 
 export type VehicleCommState = (typeof VEHICLE_COMM_STATE_DEF)[number]['key'];
 
+/**
+ * 可以下給車機的指令。
+ *
+ * `danger` 標的那一個會中斷正在進行的巡查：車機重開機要一兩分鐘，
+ * 這段時間的軌跡與案件全部沒有 —— 所以介面上要問一次再送。
+ *
+ * 指令是**非同步**的：伺服器送出之後等車機回 ack，逾時就回報逾時，
+ * 而不是假裝送到了。收訊差的地方這件事每天都在發生。
+ */
+export const COMMAND_ACTION_DEF = [
+  { key: 'STREAM_START', name: '開始串流', hint: '要車機把即時影像推上來' },
+  { key: 'STREAM_STOP', name: '停止串流', hint: '省流量；巡查結束後應該關掉' },
+  { key: 'ECU_QUERY', name: '查詢車況', hint: '電壓、轉速、里程表、故障碼' },
+  { key: 'SNAPSHOT', name: '拍一張', hint: '不開串流也看得到現在的畫面' },
+  { key: 'REBOOT', name: '重新開機', danger: true, hint: '會中斷巡查一到兩分鐘' }
+] as const;
+
+export type CommandActionKey = (typeof COMMAND_ACTION_DEF)[number]['key'];
+
+/** 串流狀態；`ERROR` 要看得出來，否則督導會以為畫面只是還沒載入 */
+export const STREAM_STATE_DEF = [
+  { key: 'IDLE', name: '未串流', color: 'muted' },
+  { key: 'STARTING', name: '啟動中', color: 'info' },
+  { key: 'STREAMING', name: '串流中', color: 'success' },
+  { key: 'ERROR', name: '串流失敗', color: 'error' }
+] as const;
+
+export type StreamStateKey = (typeof STREAM_STATE_DEF)[number]['key'];
+
 /** 鋪面調查的路段方向 */
 export const SURVEY_DIRECTION_DEF = [
   { key: 'BOTH', name: '雙向' },
@@ -64,3 +93,33 @@ export const HOME_SYS_DEF = [
   { key: 'SIFT_MOD', name: '二篩系統' },
   { key: 'SURVEY_MOD', name: '鋪面調查' }
 ] as const satisfies readonly KeyDef[];
+
+/**
+ * 建物用途。
+ *
+ * 這不是分類癖 —— 每一種在**施工時段**上的限制不同：
+ * 住宅區不能夜間施工、學校要避開上下學、醫院不能封死出入口。
+ * 交維計畫要依它篩，所以它是列舉而不是備註欄。
+ */
+export const BUILDING_USAGE_DEF = [
+  { key: 'RESIDENTIAL', name: '住宅', color: 'info', note: '夜間施工需另行公告' },
+  { key: 'COMMERCIAL', name: '商業', color: 'warning', note: '避開營業尖峰' },
+  { key: 'INDUSTRIAL', name: '工業', color: 'neutral', note: '需留大型車進出動線' },
+  { key: 'SCHOOL', name: '學校', color: 'error', note: '須避開上下學時段' },
+  { key: 'HOSPITAL', name: '醫療', color: 'error', note: '不得封閉出入口' },
+  { key: 'PUBLIC', name: '公共設施', color: 'success', note: '需先知會管理單位' }
+] as const;
+
+export type BuildingUsageKey = (typeof BUILDING_USAGE_DEF)[number]['key'];
+
+/** 施工前要另外評估交維的用途：這兩種不是「多一點住戶」那種等級的差別 */
+export const SENSITIVE_BUILDING_USAGE: readonly BuildingUsageKey[] = ['SCHOOL', 'HOSPITAL'];
+
+/** 行政區界線的三個層級；派工按里分派，報表按里統計 */
+export const REGION_LEVEL_DEF = [
+  { key: 'COUNTY', name: '縣市' },
+  { key: 'DISTRICT', name: '行政區' },
+  { key: 'VILLAGE', name: '里' }
+] as const satisfies readonly KeyDef[];
+
+export type RegionLevelKey = (typeof REGION_LEVEL_DEF)[number]['key'];

@@ -8,7 +8,8 @@ const ORDER_STATUS = { DELETED: -1, PENDING: 0, WORKING: 1, REPORTED: 2, DONE: 3
 /** 每日檢查一次最多抽驗幾張照片；全部驗會讓一次結算跑上幾分鐘 */
 const IMAGE_SAMPLE_LIMIT = 50;
 
-export type SettleResult = { rows: number; date: string };
+/** 一次結算/檢查的結果；`stale` 是這一輪清掉的過時列數 */
+export type SettleResult = { rows: number; date: string; stale?: number };
 
 /**
  * 結算。
@@ -191,21 +192,52 @@ export class SettlementService {
    * 所以每一組抽最多 50 張，用抽樣的缺件率推估。
    */
   public async runDailyCheck(companyId: number, date: string): Promise<SettleResult> {
+    // 這一輪的起點；結束時用它找出「這次沒有重算到」的舊列
+    const startedAt = new Date();
+
+    // 案件與軌跡**外連結**，不是以案件為主。
+    //
+    // 以案件為主的話，一台出了車卻一筆都沒上傳的車根本不會出現在清單上 ——
+    // 而那正是這張表要抓的第一種異常。同理，一台有案件卻沒有軌跡的車
+    // 代表車機的 GPS 或上傳有問題，也要看得見。
+    //
+    // 所以兩邊都要當主表：FULL OUTER JOIN 之後，
+    // 「只有案件」「只有軌跡」「兩邊都有」三種情況各自成列。
     const groups = await this.dataSource.query(
       `
-      SELECT c.project_id                                        AS "projectId",
-             COALESCE(c.car, '(未指定)')                         AS "car",
-             ad.county                                           AS "county",
-             ad.district                                         AS "district",
-             COUNT(*)::int                                       AS "caseCount",
-             COUNT(*) FILTER (WHERE c.img IS NOT NULL)::int      AS "imageTotal",
-             MIN(c.dt_record)                                    AS "firstAt",
-             MAX(c.dt_record)                                    AS "lastAt",
-             (ARRAY_AGG(c.img ORDER BY c.id) FILTER (WHERE c.img IS NOT NULL))[1:${IMAGE_SAMPLE_LIMIT}] AS "sample"
-        FROM patrol_cases c
-        LEFT JOIN patrol_case_addresses ad ON ad.case_id = c.id
-       WHERE c.company_id = $1 AND c.dt_record >= $2::date AND c.dt_record < $2::date + interval '1 day'
-       GROUP BY c.project_id, c.car, ad.county, ad.district
+      WITH cases AS (
+        SELECT c.project_id                                        AS project_id,
+               COALESCE(c.car, '(未指定)')                         AS car,
+               ad.county                                           AS county,
+               ad.district                                         AS district,
+               COUNT(*)::int                                       AS case_count,
+               COUNT(*) FILTER (WHERE c.img IS NOT NULL)::int      AS image_total,
+               MIN(c.dt_record)                                    AS first_at,
+               MAX(c.dt_record)                                    AS last_at,
+               (ARRAY_AGG(c.img ORDER BY c.id) FILTER (WHERE c.img IS NOT NULL))[1:${IMAGE_SAMPLE_LIMIT}] AS sample
+          FROM patrol_cases c
+          LEFT JOIN patrol_case_addresses ad ON ad.case_id = c.id
+         WHERE c.company_id = $1 AND c.dt_record >= $2::date AND c.dt_record < $2::date + interval '1 day'
+         GROUP BY c.project_id, c.car, ad.county, ad.district
+      ),
+      driven AS (
+        SELECT v.plate_no AS car, COUNT(*)::int AS points
+          FROM vehicle_tracks t
+          JOIN vehicles v ON v.id = t.vehicle_id
+         WHERE t.company_id = $1 AND t.recorded_at >= $2::date AND t.recorded_at < $2::date + interval '1 day'
+         GROUP BY v.plate_no
+      )
+      SELECT cs.project_id                          AS "projectId",
+             COALESCE(cs.car, d.car)                AS "car",
+             cs.county                              AS "county",
+             cs.district                            AS "district",
+             COALESCE(cs.case_count, 0)             AS "caseCount",
+             COALESCE(cs.image_total, 0)            AS "imageTotal",
+             cs.first_at                            AS "firstAt",
+             cs.last_at                             AS "lastAt",
+             cs.sample                              AS "sample"
+        FROM cases cs
+        FULL OUTER JOIN driven d ON d.car = cs.car
       `,
       [companyId, date]
     );
@@ -265,7 +297,21 @@ export class SettlementService {
       );
     }
 
-    return { rows: groups.length, date };
+    // 這一次沒有重算到的列要刪掉。
+    //
+    // 每小時重跑一次的意義是「用現在的資料重新判斷這一天」，
+    // 而分組會隨資料改變：早上八點那台車還沒有案件(分組是 NULL 標案／NULL 行政區)，
+    // 中午案件進來之後變成另一組。舊的那一列不會被 upsert 命中，
+    // 於是同一台車同一天同時掛著「正常」與「有軌跡但沒有案件」——
+    // 督導看到互相矛盾的兩列，只能自己猜哪一列是新的。
+    const stale = await this.dataSource.query(
+      `DELETE FROM daily_checks
+        WHERE company_id = $1 AND check_date = $2::date AND checked_at < $3
+        RETURNING id`,
+      [companyId, date, startedAt]
+    );
+
+    return { rows: groups.length, date, stale: stale.length };
   }
 
   /**
@@ -290,6 +336,9 @@ export class SettlementService {
   private composeNote(caseCount: number, trackPoints: number, missing: number): string {
     if (!caseCount && !trackPoints) return '未出車';
     if (!caseCount) return '有軌跡但沒有案件，請確認判讀模型是否正常';
+    // 有案件卻沒有軌跡：案件是車機送上來的，那台車不可能沒有走過路 ——
+    // 所以問題出在 GPS 或軌跡上傳，而那會讓這台車的里程結算少算
+    if (!trackPoints) return '有案件但沒有軌跡，請確認車機 GPS 與軌跡上傳';
     if (missing) return `照片可能缺件約 ${missing} 張`;
 
     return '正常';

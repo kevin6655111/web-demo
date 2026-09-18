@@ -63,6 +63,11 @@ export class EnvService {
     return config.app.jwt.expiresInSec ?? 1800;
   }
 
+  /** 取得 API 文件的存取金鑰設定 */
+  public getApiDocsConfig(): AppConfig['apiDocs'] {
+    return config.apiDocs ?? {};
+  }
+
   /** 是否啟用排程 */
   public isTaskActive(): boolean {
     return !!config.task.active;

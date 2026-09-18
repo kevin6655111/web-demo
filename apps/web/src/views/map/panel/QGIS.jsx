@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Divider, Paper, Stack, Typography } from '@mui/material';
 import LayersIcon from '@mui/icons-material/Layers';
-import { patrolPlanApi, roadEvalApi, surveyApi, tilesApi } from '../../../models/api/patrolApi';
+import { geoApi, patrolPlanApi, roadEvalApi, surveyApi, tilesApi } from '../../../models/api/patrolApi';
 import { useMapLayers } from '../../../context/MapContext';
+import { BUILDING_USAGE_COLOR } from '../../../config/vocabulary';
 
 /**
  * 圖資查詢：一次把所有圖層載進來。
@@ -19,17 +20,23 @@ export default function QGIS() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [cases, segments, plans, surveys] = await Promise.all([
+      const empty = { data: { features: [] } };
+      const [cases, segments, plans, surveys, villages, buildings] = await Promise.all([
         tilesApi.caseLayer({}),
         roadEvalApi.layer({}),
-        patrolPlanApi.layer({ ACTIVE: true }).catch(() => ({ data: { features: [] } })),
-        surveyApi.cases({}).catch(() => ({ data: [] }))
+        patrolPlanApi.layer({ ACTIVE: true }).catch(() => empty),
+        surveyApi.cases({}).catch(() => ({ data: [] })),
+        // 里界是派工的分派單位，所以三層裡預設載這一層
+        geoApi.region({ LEVEL: 'VILLAGE' }).catch(() => empty),
+        geoApi.building({}).catch(() => empty)
       ]);
 
       const caseFeatures = cases.data?.features ?? [];
       const segmentFeatures = segments.data?.features ?? [];
       const planFeatures = plans.data?.features ?? [];
       const surveyPoints = (surveys.data ?? []).filter((s) => s.LNG && s.LAT);
+      const villageFeatures = villages.data?.features ?? [];
+      const buildingFeatures = buildings.data?.features ?? [];
 
       registerLayer('case', {
         group: 'case',
@@ -70,6 +77,32 @@ export default function QGIS() {
         order: 11,
         defaultVisible: false,
         bounds: () => planFeatures.flatMap((f) => f.geometry.coordinates.map(([lng, lat]) => [lat, lng]))
+      });
+
+      // 界線與建物都預設關閉：它們是參考框，開著會把要看的東西蓋住
+      registerLayer('region', {
+        group: 'base',
+        type: 'region',
+        label: '里界',
+        color: '#94a3b8',
+        count: villageFeatures.length,
+        data: villageFeatures,
+        order: 2,
+        defaultVisible: false,
+        bounds: () => villageFeatures.flatMap((f) => f.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]))
+      });
+
+      registerLayer('building', {
+        group: 'base',
+        type: 'building',
+        label: '建物量體',
+        color: '#64748b',
+        colorOf: (p) => BUILDING_USAGE_COLOR[p.usage],
+        count: buildingFeatures.length,
+        data: buildingFeatures,
+        order: 3,
+        defaultVisible: false,
+        bounds: () => buildingFeatures.flatMap((f) => f.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]))
       });
 
       registerLayer('survey', {
@@ -130,7 +163,8 @@ export default function QGIS() {
       </Button>
 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-        疊圖能回答單一圖層答不了的問題： 案件是否集中在低分路段、巡查路線有沒有涵蓋到那些案件、調查點選得對不對。
+        疊圖能回答單一圖層答不了的問題： 案件是否集中在低分路段、巡查路線有沒有涵蓋到那些案件、調查點選得對不對、
+        要封的那條路旁邊是住宅還是廠區。
       </Typography>
     </Paper>
   );

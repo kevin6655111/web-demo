@@ -47,6 +47,15 @@ storage:
     accessKey: ${MINIO_ROOT_USER}
     secretKey: ${MINIO_ROOT_PASSWORD}
 
+# API 文件的存取金鑰。一單位一把，可個別撤銷。
+# 未設定(或少於 10 字元)的那一份文件會回 503 —— 文件裡有完整的欄位結構與業務規則，
+# 預設開放不是合理的預設值。
+apiDocs:
+  internalKey: ${DOCS_INTERNAL_KEY}
+  vendors:
+    device: ${DOCS_DEVICE_KEY} # 車機廠商
+    app: ${DOCS_APP_KEY} # 行動應用廠商
+
 task:
   # 總開關；關掉就完全不註冊排程(本機開發常關掉，免得每分鐘洗版)
   active: true

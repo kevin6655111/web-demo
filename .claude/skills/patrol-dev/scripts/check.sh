@@ -2,20 +2,25 @@
 #
 # 專案健康檢查：型別、測試、建置、以及這個 Demo 特有的幾個容易踩的坑。
 #
-# 用法: bash .claude/skills/patrol-dev/scripts/check.sh [--quick]
-#   --quick  只跑靜態檢查(型別與規則掃描)，略過測試與建置
+# 用法: bash .claude/skills/patrol-dev/scripts/check.sh [--quick|--privacy-only]
+#   --quick         只跑靜態檢查(型別與規則掃描)，略過測試與建置
+#   --privacy-only  只跑隱私掃描。這是公開專案，加完示範資料或文件時只需要這一段，
+#                   而跑完整檢查要好幾分鐘 —— 太慢的檢查最後就沒有人跑
 
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." || exit 1
 
 quick=false
+privacy_only=false
 [ "${1:-}" = "--quick" ] && quick=true
+[ "${1:-}" = "--privacy-only" ] && privacy_only=true
 
 fail=0
 pass() { echo "  ✅ $1"; }
 warn() { echo "  ⚠️  $1"; }
 bad()  { echo "  ❌ $1"; fail=$((fail + 1)); }
 
+if [ "$privacy_only" = false ]; then
 echo "── 靜態規則 ─────────────────────────────────────────"
 
 # BullMQ 的 jobId 不能含冒號
@@ -72,6 +77,8 @@ if grep -rn "createQueryBuilder" apps/api/src --include='*.service.ts' | wc -l |
     pass "查詢建構器使用中(company_id 條件請人工複查)"
 fi
 
+fi   # 靜態規則結束
+
 echo
 echo "── 隱私掃描 ─────────────────────────────────────────"
 # 要掃的真實識別字放在不進版控的清單裡 —— 寫在這支腳本裡的話，
@@ -96,6 +103,13 @@ if [ -f .env ] && git check-ignore -q .env 2>/dev/null; then
     pass ".env 已被忽略"
 elif [ -f .env ]; then
     warn ".env 存在但未確認是否被版控忽略"
+fi
+
+if [ "$privacy_only" = true ]; then
+    echo
+    echo "── 結果 ─────────────────────────────────────────────"
+    [ "$fail" -eq 0 ] && echo "  通過(僅隱私掃描)" || echo "  FAIL: $fail 項"
+    exit "$fail"
 fi
 
 if [ "$quick" = true ]; then

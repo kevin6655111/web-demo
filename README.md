@@ -9,7 +9,7 @@
 
 > 所有資料皆為合成，公司、機關、案件、座標均為虛構，與任何實際專案無關。
 
-系統設計與取捨見 [docs/architecture.md](docs/architecture.md)，
+系統設計與取捨見 [docs/internal/architecture.md](docs/internal/architecture.md)，
 其餘文件見 [docs/](docs/README.md)。
 
 ---
@@ -71,7 +71,7 @@ bash scripts/pack-offline.sh v1.0.0
 ```
 
 解開後複製 `.env.example` 為 `.env` 並修改密碼，執行 `bash install.sh` 即可。
-詳見 [部署與 CI/CD](docs/deployment.md)。
+詳見 [部署與 CI/CD](docs/internal/deployment.md)。
 
 ### 示範帳號
 

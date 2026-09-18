@@ -115,6 +115,53 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * 設定 hash 的部分欄位並續期。
+   *
+   * 用 hash 而不是整包 JSON，是為了避開**遺失更新**：
+   * 「讀出整包 → 改一個欄位 → 寫回」在兩個來源同時更新時，
+   * 後寫的那一方會把前一方的改動蓋掉 —— 而那不會報錯，
+   * 只是某個欄位安靜地消失。車機同時送 ECU 與影像幀就會撞到這件事。
+   *
+   * 值一律序列化成字串：Redis 的 hash 只存字串，而物件欄位要能存 JSON。
+   */
+  public async hsetJson(key: string, fields: Record<string, unknown>, ttlMs: number): Promise<void> {
+    const flat: string[] = [];
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === undefined) continue;
+      flat.push(field, typeof value === 'string' ? value : JSON.stringify(value));
+    }
+    if (!flat.length) return;
+
+    await this.redis.hset(key, ...flat);
+    await this.redis.pexpire(key, ttlMs);
+  }
+
+  /** 原子遞增 hash 的某個數字欄位；計數器不能用讀改寫 */
+  public async hincr(key: string, field: string, by = 1, ttlMs?: number): Promise<number> {
+    const value = await this.redis.hincrby(key, field, by);
+    if (ttlMs) await this.redis.pexpire(key, ttlMs);
+
+    return value;
+  }
+
+  /** 讀回整個 hash；欄位值以 JSON 解析，解不開就當字串 */
+  public async hgetJson<T>(key: string): Promise<T | null> {
+    const raw = await this.redis.hgetall(key);
+    if (!raw || !Object.keys(raw).length) return null;
+
+    const parsed: Record<string, unknown> = {};
+    for (const [field, value] of Object.entries(raw)) {
+      try {
+        parsed[field] = JSON.parse(value);
+      } catch {
+        parsed[field] = value;
+      }
+    }
+
+    return parsed as T;
+  }
+
+  /**
    * 依前綴清除。
    *
    * 用 `SCAN` 而不是 `KEYS`：後者在鍵數量大時會阻塞整個 Redis，

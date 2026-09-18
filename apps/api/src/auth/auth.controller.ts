@@ -7,7 +7,7 @@ import { Audit } from '@decorators/audit.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { AuthService } from './auth.service';
 import { ApiKeyService } from './api-key.service';
 import {

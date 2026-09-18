@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "patrol-dev": {
+      "command": "node",
+      "args": [".claude/mcp/patrol-mcp.mjs"],
+      "description": "道路巡查 Demo 的唯讀開發工具：行程健檢、資料庫查詢、端點清單、排程狀態、快取現況、隱私掃描"
+    }
+  }
+}

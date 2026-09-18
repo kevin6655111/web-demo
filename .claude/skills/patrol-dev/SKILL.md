@@ -6,8 +6,48 @@ description: 開發道路巡查 Demo（NestJS 微服務 + PostGIS + BullMQ + Web
 # 道路巡查 Demo 開發流程
 
 多行程的 NestJS 後端 + React 前端，以 Docker Compose 部署。
+**公開的示範專案** —— 每一行進去的東西都會被看見，包含示範資料。
 
-## 系統地圖
+## 這份技能怎麼讀
+
+| 你現在要做什麼         | 從哪一節開始                                     |
+| ---------------------- | ------------------------------------------------ |
+| 搞清楚東西放在哪一層   | [1. 系統地圖](#1-系統地圖)、[2. 領域模組](#2-領域模組) |
+| 改到單據的狀態或寫入   | **[3. 三段業務規則](#3-三段業務規則)先讀完**     |
+| 動手改                 | [5. 階段一](#5-階段一確認要改哪一層) → [6. 階段二](#6-階段二執行) → [7. 階段三](#7-階段三驗證) |
+| 把環境跑起來           | [8. 跑起來](#8-跑起來)                           |
+| 交付、打包、部署       | [9. 交付](#9-交付原始碼保護與離線包)、[10. CI/CD](#10-cicd) |
+| 東西壞了               | [references/troubleshooting.md](references/troubleshooting.md) |
+| 想知道現在做到哪、缺什麼 | [references/status.md](references/status.md)   |
+
+**三條在任何情況下都成立的規則**：
+
+1. 這是公開專案 —— 真實客戶名稱、案件、內部位址、`.env` 實際值一律不得進入（[§11](#11-隱私與界線)）
+2. 沒有貼出指令輸出，就不算驗證過（[§7](#7-階段三驗證)）
+3. 代碼表只有一份，放 `packages/shared`，前端不手寫中文對照
+
+## 0. MCP 工具（先用它，再自己拼指令）
+
+`.mcp.json` 註冊了 `patrol-dev` 伺服器（`.claude/mcp/patrol-mcp.mjs`，零執行期依賴）。
+**六個工具全部唯讀** —— 要改東西請走一般的開發流程。
+
+| 工具                   | 什麼時候用                                                     |
+| ---------------------- | -------------------------------------------------------------- |
+| `patrol_health`        | **任何「沒反應」的問題先問這個**：七個行程與容器誰活著         |
+| `patrol_db_query`      | 唯讀 SQL（單一 SELECT／WITH，跑在唯讀交易裡）確認資料真的寫進去了 |
+| `patrol_endpoints`     | 從執行中服務的內部文件列端點與所需權限                         |
+| `patrol_task_status`   | 排程狀態（存在 Redis，由 scheduler 寫）                        |
+| `patrol_cache_keys`    | 鍵與 TTL：該快取的有沒有快取、該失效的有沒有失效               |
+| `patrol_privacy_scan`  | 隱私掃描；等同 `check.sh --privacy-only`                       |
+
+為什麼要有這層：這些問題的答案要靠一串 `docker exec` 與 `curl` 拼出來，
+而拼錯了不會報錯，只會得到誤導性的結論 —— 例如把「scheduler 沒起來」
+誤判成「排程壞了」。包成工具之後，問法就固定了。
+
+`patrol_endpoints` 讀的是**跑起來的服務**的文件而不是掃程式碼：
+掃程式碼看不到裝飾器實際套用的結果，而「文件上有沒有」本身就是驗收條件之一。
+
+## 1. 系統地圖
 
 七個行程，各自一個容器。**分開的理由是「壞的方式不同」**，動手前先確認要改的東西屬於哪一個：
 
@@ -25,7 +65,7 @@ description: 開發道路巡查 Demo（NestJS 微服務 + PostGIS + BullMQ + Web
 
 ---
 
-## 領域模組
+## 2. 領域模組
 
 ### 目錄結構
 
@@ -90,16 +130,27 @@ AI 車巡案件 ──┐
 
 ### 其餘模組
 
-`auth`(登入/權限/組織三層) `orgstruct`(導覽定義) `core`(代碼表/公告/驗證碼)
-`project`(標案與關聯) `case-history`(五種實體共用的版本化歷程)
-`fleet`(車隊/軌跡) `road-eval`(道路評估) `patrol-setting`(巡查計畫與覆蓋率)
-`report`(報表佇列) `dashboard` `tiles`(向量/GeoJSON 圖層) `geo`(逆地理編碼)
-`websocket`(推播) `support`(客服) `task`(排程) `queue`(BullMQ + 事件匯流排)
-`storage`(MinIO) `security`
+**領域**：`auth`(登入/權限/組織三層/API Key) `sift`(二篩：判讀、覆核、計薪)
+`survey`(鋪面調查：委託單、明細、App 收案) `project`(標案與關聯)
+`case-history`(五種實體共用的版本化歷程) `fleet`(車隊/軌跡)
+`road-eval`(道路評估) `road-setting`(道路線段/區塊/巡查點與覆蓋率)
+`patrol-setting`(巡查計畫) `report`(報表佇列，11 種)
+`dashboard`(總覽/每日檢查/結算) `geo`(逆地理編碼、行政區界線三層、建物)
+`vehicle-comm`(車機 WebSocket、指令/ack、ECU) `support`(客服)
+
+**邊界**：`integration`(對外的三支端點；獨立成模組是因為 `@ApiTags` 會累加，
+散在各領域模組加 tag 會讓文件分流失效) `api-docs`(內部/對外文件分流與金鑰守門)
+
+**基礎設施**：`orgstruct`(導覽定義) `core`(代碼表/公告/驗證碼)
+`tiles`(向量/GeoJSON 圖層) `websocket`(推播) `task`(排程)
+`queue`(BullMQ + 事件匯流排) `storage`(MinIO) `redis` `security`
+`init-process`(開機自檢 + 界線快取預熱)
 
 ---
 
-## 三段業務規則（改動寫入路徑前務必讀完）
+## 3. 三段業務規則
+
+改動寫入路徑前務必讀完。
 
 這三段是這套系統最容易改壞、也最難從測試看出來的地方。
 
@@ -138,7 +189,9 @@ AI 車巡案件 ──┐
 
 ---
 
-## 冪等三層（改動寫入路徑時務必維持）
+## 4. 冪等三層
+
+改動寫入路徑時務必維持。
 
 1. HTTP `Idempotency-Key` → Redis `SET NX`，回放第一次的回應
 2. BullMQ `jobId`（**不可含冒號**，BullMQ 內部用它切 key）
@@ -148,7 +201,7 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 
 ---
 
-## 微服務與即時推播
+### 微服務與即時推播
 
 事件走 **Redis transport**（`@nestjs/microservices`），佇列走 BullMQ。**兩者不要混用**：
 
@@ -172,7 +225,9 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 
 ---
 
-## 階段一：確認要改哪一層（此階段不寫任何檔案）
+## 5. 階段一：確認要改哪一層
+
+**此階段不寫任何檔案。**
 
 1. 讀相關模組，找出**實際的插入點與既有命名**，不要憑印象。
 2. 判斷這次的改動落在哪一層，照下表決定作法：
@@ -200,7 +255,7 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 
 ---
 
-## 階段二：執行
+## 6. 階段二：執行
 
 ### 後端硬規則
 
@@ -238,6 +293,22 @@ Redis 會被清空、視窗會過期，**第三層是唯一不會消失的保證
 - **代碼表一律放 `@road-patrol/shared`**，前端不手寫中文對照。
   它同時是後端的驗證清單與前端的下拉選項，各存一份必定分岔。
 - PostGIS 的 `ST_AsMVTGeom` 要先 `ST_Transform` 到 3857；不轉不會報錯，只回空圖磚。
+- **PostGIS 判斷「點落在哪一區」用 `ST_Intersects` 不是 `ST_Contains`**：後者不含邊界，
+  座標剛好落在兩區交界時三個欄位全是 null。多重命中要加確定性排序
+  （層級 → 面積 ASC → id ASC），否則同一個座標每次查可能得到不同答案。
+- **兩個來源會同時改的狀態放 Redis hash，不要整包 JSON**：
+  「讀整包 → 改一個欄位 → 寫回」在並行時後寫的會蓋掉前一個，而且不會報錯，
+  只是某個欄位安靜消失。用 `HSET`／`HINCRBY` 各改各的（車機的 ECU 與影像幀就會撞到）。
+- **可重跑的統計要清掉「這次沒重算到」的舊列**：分組會隨資料改變 ——
+  早上那台車還沒有案件（分組是 NULL 標案），中午案件進來變成另一組。
+  舊列不會被 upsert 命中，於是同一天同一台車掛著兩筆互相矛盾的結論。
+  記下這一輪的起始時間，最後 `DELETE ... WHERE checked_at < startedAt`。
+- **唯一鍵含可為 NULL 的欄位時要 `UNIQUE NULLS NOT DISTINCT`**（PG 15+）：
+  Postgres 預設 NULL 彼此不相等，`ON CONFLICT` 永遠不會命中 ——
+  每小時的排程會替同一組再插一列，一天疊出 24 列。
+- **統計要以「所有該出現的主體」為主表，不是以有資料的那些為主**：
+  以案件為主表統計每日上傳，一台出了車卻一筆都沒上傳的車根本不會出現在清單上 ——
+  而那正是要抓的第一種異常。兩邊都當主表就是 `FULL OUTER JOIN`。
 
 ### 前端硬規則
 
@@ -303,7 +374,9 @@ yarn seed:images                               # 示範圖片(SVG，上傳到 Mi
 
 ---
 
-## 階段三：驗證（必跑，且必須貼出實際輸出）
+## 7. 階段三：驗證
+
+**必跑，且必須貼出實際輸出。**
 
 ```bash
 yarn typecheck    # 前後端型別（會先建 shared）
@@ -337,7 +410,7 @@ bash .claude/skills/patrol-dev/scripts/check.sh
 
 ---
 
-## 跑起來
+## 8. 跑起來
 
 ### 本機開發
 
@@ -355,6 +428,18 @@ yarn start                     # 六個行程一起跑(前端 3005)
 `yarn start` 會先做一次，但開發途中改了共用常數，nodemon 不會替你重建。
 
 背景執行要用 `setsid --fork nohup`，否則行程會跟著 shell 一起被收掉。
+
+**重啟單一行程用腳本，不要自己 `pkill -f`**：
+
+```bash
+bash scripts/restart-api.sh         # 找 3008 的 listener，收掉整棵樹再起
+bash scripts/restart-scheduler.sh   # 按 PGID 收；排程只能有一份在跑
+```
+
+`pkill -f "src/main/api.ts"` 會 match 到**執行它的那個 shell 自己**，
+於是腳本在殺掉 api 之前先把自己殺了（exit 144）。
+而只殺最下層的 node 的話，上面的 npm 包裝會立刻再拉一個**舊程式碼**的起來 ——
+看起來像重啟失敗，實際上是重啟成功之後又被復活。
 
 ### 完整部署
 
@@ -382,7 +467,7 @@ bash clean.sh                  # 停止(保留資料)
 
 ---
 
-## 交付：原始碼保護與離線包
+## 9. 交付：原始碼保護與離線包
 
 ### 後端不以明碼交付
 
@@ -429,7 +514,7 @@ bash scripts/pack-offline.sh [版本號]
 
 ---
 
-## CI/CD
+## 10. CI/CD
 
 | 檔案                                    | 觸發            | 做什麼                                               |
 | --------------------------------------- | --------------- | ---------------------------------------------------- |
@@ -445,44 +530,7 @@ bash scripts/pack-offline.sh [版本號]
 
 ---
 
-## 排錯
-
-| 症狀                                                           | 原因                                                                                                                                                                  |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Entity metadata for X#y was not found`                        | 新實體沒加進 `ALL_ENTITIES`                                                                                                                                           |
-| `Nest can't resolve dependencies of the XService`              | 用了別的模組的 service，但模組沒 `imports` 對方的 module                                                                                                              |
-| `Custom Id cannot contain :`                                   | BullMQ 的 `jobId` 用了冒號                                                                                                                                            |
-| `Cannot read properties of undefined (reading 'databaseName')` | 分頁查詢的 `orderBy` 用了欄位名，要改成屬性名                                                                                                                         |
-| `res.status is not a function`                                 | 例外過濾器沒有排除 RPC 情境（`host.getType() !== 'http'`）                                                                                                            |
-| 登入回「帳號或密碼錯誤」但密碼是對的                           | 連續失敗 5 次已鎖定 15 分鐘，`docker exec patrol-redis redis-cli del 'login:lock:DEMO:admin'`                                                                         |
-| 排程狀態是空的                                                 | `scheduler` 行程沒起來（狀態由它寫進 Redis，api 只負責讀）                                                                                                            |
-| WebSocket 連得上但收不到推播                                   | 全域守衛沒排除非 HTTP 情境；或頻道沒加進 `WS_CHANNEL`                                                                                                                 |
-| 向量圖磚永遠是空的                                             | 幾何沒轉到 3857，或舊的空圖磚還在 Redis 快取裡                                                                                                                        |
-| 安全表頭在網頁上沒出現、靜態檔卻有                             | nginx 的 `add_header` 是**取代**不是累加 —— 子 location 只要自己寫了一個，父層的全部會被丟掉。凡是有自己 add_header 的 location 都要再 include `security-headers.inc` |
-| 走備援 port 時簽名網址／重導向指回錯的 port                    | proxy 用了 `$host`（會吃掉 port），要改 `$http_host`                                                                                                                  |
-| 前端資料抓兩遍                                                 | 元件被渲染兩次（用 `useMediaQuery` 決定位置，不要用 CSS 顯示兩份）                                                                                                    |
-| 版本比較回 404                                                 | 該版本的歷程沒有 `snapshot`（直接用 repository 寫入的歷程會這樣）                                                                                                     |
-| **復原後回到了初始狀態而不是刪除前的狀態**                     | 中間某次狀態變動沒寫歷程 —— 通常是別的模組改的                                                                                                                        |
-| **一張沒有施工人員的單卻是「施工中」**                         | 撤回／復原沒有走 workerStatus 的下限                                                                                                                                  |
-| 對話框翻頁按了不動                                             | 索引用了外部傳入的初始 id，要用內部的「目前這筆」                                                                                                                     |
-| 勾選框一按就打開詳情                                           | 可點擊的列裡的控制項要 `stopPropagation`                                                                                                                              |
-| Playwright strict mode violation                               | 說明文字也含同樣字串，用 `exact: true`、role 或 `.first()`                                                                                                            |
-| 混淆後啟動就掛                                                 | 混淆設定動到了類別名稱，或關掉了 `reservedNames`                                                                                                                      |
-| 前端建置說 shared 沒有匯出某個名稱                             | 只建了 CJS —— Rollup 看不穿 CJS 的 `export *`，要一併建 ESM                                                                                                           |
-| 改了共用常數但畫面沒變                                         | `packages/shared` 沒重建（`yarn build:shared`）                                                                                                                       |
-| 篩選後的 `TOTAL` 跟實際筆數對不上                              | 篩選寫在分頁之後的 JS 裡，要推進 SQL                                                                                                                                  |
-| `property XXX should not exist`                                | 查詢面板送了 DTO 沒有的欄位，兩邊要同步                                                                                                                               |
-| 篩選條件設了卻沒作用                                           | DTO 收了但服務沒實作，條件被安靜忽略                                                                                                                                  |
-| 併發建單時大量 duplicate key                                   | 沒有走 `caseEncodeService`，自己用 MAX+1 取號                                                                                                                         |
-| 郵件永遠停在 PENDING                                           | `mail-worker` 行程沒起來                                                                                                                                              |
-| Redis 掛掉時請求整個卡住而不是報錯                             | 連線用了預設的離線佇列，命令會無限期排隊                                                                                                                              |
-| 剛改完標案但列表沒更新                                         | 寫入路徑漏了 `delByPrefix(PROJECT_CACHE_PREFIX)`                                                                                                                      |
-| `yarn start` 說 EADDRINUSE                                     | 前一次的行程還在，`kill -TERM -<pgid>` 收掉整棵樹                                                                                                                     |
-| 逆地理編碼回傳的路名不像真的                                   | 該座標 150 公尺內沒有門牌，退回了合成路名                                                                                                                             |
-
----
-
-## 隱私與界線
+## 11. 隱私與界線
 
 這是**公開的示範專案**，會被放上個人 GitHub。
 
@@ -502,31 +550,11 @@ bash .claude/skills/patrol-dev/scripts/check.sh   # 隱私掃描包含在裡面
 
 ---
 
-## 目前狀態
+## 延伸閱讀
 
-- 六個行程與監控三件套都能以 compose 啟動，映像檔建置正常
-- 示範資料 1,800 案件 / 180 巡查單 / 400+ 派工單 / 5,400 軌跡點 / 36 路段（`SEED_SCALE` 可放大）
-- 導覽資料驅動；圖台單一地圖多圖層；三種渲染模式（案件／聚合／熱點）
-- 巡查單 → 派工單的完整流程：轉派、撤回、刪除、復原，以及它們之間的守門條件
-- 派工單可指派多人（關聯表），也可以先不指派；施工單位分自主／廠商／公所
-- 歷程版本化，五種實體（案件／巡查單／派工單／標案／檢測）共用一組端點，可比較與還原
-- 派工單與巡查單照片走 multipart，欄位名即照片類型；完工前檢查必要照片齊不齊
-- 圖片一律走 `components/image/ImageViewer`（滾輪縮放／拖曳平移／鍵盤 ←→ +- 0 Esc）。
-  **不要用 `react-image-magnifiers`** —— 已停更，手一離開就回到原狀，沒辦法放大後停著看。
-- ZIP 照片在前端解（`models/utils/zipModel`，用 fflate）；blob URL 記得 revoke。
-- 清單有縮圖（`components/query/ImageCell`）；圖片以短效簽名網址提供，
-  簽名要用**對外**位址(`storage.minio.publicEndPoint`)—— S3 簽章涵蓋 Host，簽完再換網址一律 403
-- 組織三層（平台／廠商／外包）：只看得到自己的子樹，開不出自己沒有的權限
-- 日夜佈景切換；底圖預設 NLSC 臺灣電子地圖，另有正射影像、土地利用、Google、深/淺色共 10 種
-- 憑證過期會自動踢出並說明原因；每 20 分鐘主動續期
-- 後端交付產物已做原始碼保護；離線包可一鍵打包與安裝
-
-## 還沒做的事
-
-- 案件的原始照片只存路徑（示範資料沒有實體檔案）；派工單與巡查單照片則是完整的上傳／預覽／刪除。
-- 報表的 Word 版只列前 200 筆明細（超過請看 Excel）；報表尚未涵蓋巡查單。
-- 巡查單還沒上圖台 —— 目前只有列表；要疊到地圖上需要在 `MapContext` 登錄一種新圖層。
-- Google 街景**內嵌**需要 Maps API 金鑰（設 `VITE_GOOGLE_MAPS_KEY`）；
-  沒金鑰時走免金鑰的外開連結，或切 Mapillary 內嵌。
-- 沒有 TLS：Demo 用 HTTP，正式站台要補 certbot 與 HSTS。
-- 前端只在 Playwright(Chromium headless)驗證過，沒有在真實桌機瀏覽器目視確認過視覺細節。
+| 檔案                                                     | 內容                                     |
+| -------------------------------------------------------- | ---------------------------------------- |
+| [references/troubleshooting.md](references/troubleshooting.md) | 症狀 → 根因對照表                  |
+| [references/status.md](references/status.md)             | 目前做到哪、還缺什麼                     |
+| `docs/internal/`                                         | 架構、資料模型、部署、維運、移植報告     |
+| `docs/external/`                                         | 交付給對接廠商的介接規格                 |

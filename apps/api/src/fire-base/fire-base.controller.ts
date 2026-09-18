@@ -4,7 +4,7 @@ import { HttpResponse, type HttpResult } from '@/http/http-response';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { FireBaseService } from './fire-base.service';
 import { RegisterDeviceDto, UnregisterDeviceDto } from './fire-base.dto';
 import type { DevicePlatform } from './entities/device-token.entity';

@@ -55,6 +55,18 @@ export type AppConfig = {
     };
   };
 
+  /**
+   * API 文件的存取金鑰。
+   *
+   * 一單位一把，可個別撤銷 —— 某一單位的連結外流時只換那一把，
+   * 不必通知所有對接單位。未設定(或少於 10 字元)的文件一律回 503，
+   * 而不是預設開放：文件裡有完整的欄位結構與業務規則。
+   */
+  apiDocs: {
+    internalKey?: string;
+    vendors?: Record<string, string | undefined>;
+  };
+
   task: {
     /** 總開關：關掉就完全不註冊任何排程 */
     active: boolean;

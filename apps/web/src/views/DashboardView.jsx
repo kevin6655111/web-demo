@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Chip, Grid, LinearProgress, Paper, Stack, Typography, useTheme } from '@mui/material';
+import { Alert, Box, Chip, Grid, LinearProgress, Paper, Stack, Tab, Tabs, Typography, useTheme } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import {
   Area,
@@ -17,9 +17,27 @@ import { dashboardApi } from '../models/api/patrolApi';
 import { DashboardPresenter } from '../presenters/DashboardPresenter';
 import { useRealtime } from '../hooks/useRealtime';
 import KpiCard from './components/KpiCard';
+import DailyCheckPanel from './dashboard/DailyCheckPanel';
+import SettlementPanel from './dashboard/SettlementPanel';
 import LiveFeed from './components/LiveFeed';
 
 const CHANNELS = ['case', 'workorder', 'presence'];
+
+/**
+ * 三個分頁對應三種**時間尺度**，不是三份同樣資料的不同切法：
+ *
+ * - 總覽 —— 現在。即時推播，會自己更新
+ * - 每日檢查 —— 昨天。督導早上要處理的清單
+ * - 結算 —— 這個月。請款的依據
+ *
+ * 放同一頁是因為使用者在這三者之間來回：看到今天案件異常少，
+ * 下一個動作就是去每日檢查看哪台車沒上傳。換頁會打斷那個動作。
+ */
+const TABS = [
+  { value: 'overview', label: '總覽' },
+  { value: 'daily', label: '每日檢查' },
+  { value: 'settlement', label: '結算' }
+];
 
 /** 儀表板 */
 export default function DashboardView() {
@@ -37,6 +55,7 @@ export default function DashboardView() {
     [muiTheme]
   );
 
+  const [tab, setTab] = useState('overview');
   const [data, setData] = useState(null);
   const [recent, setRecent] = useState([]);
   const [error, setError] = useState('');
@@ -83,11 +102,57 @@ export default function DashboardView() {
   const hotspots = useMemo(() => DashboardPresenter.hotspots(data?.HOTSPOTS), [data]);
   const overdue = useMemo(() => DashboardPresenter.overdue(data?.OVERDUE), [data]);
 
-  if (error) return <Alert severity="error">{error}</Alert>;
-  if (!data) return <LinearProgress />;
+  const tabBar = (
+    <Tabs
+      value={tab}
+      onChange={(_, v) => setTab(v)}
+      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none' } }}
+    >
+      {TABS.map((t) => (
+        <Tab key={t.value} value={t.value} label={t.label} />
+      ))}
+    </Tabs>
+  );
+
+  // 分頁列先畫出來再處理總覽的載入狀態：總覽掛了的時候，
+  // 使用者還是要切得到另外兩個分頁 —— 它們走的是不同的端點
+  if (tab === 'daily') {
+    return (
+      <Stack spacing={2}>
+        {tabBar}
+        <DailyCheckPanel />
+      </Stack>
+    );
+  }
+
+  if (tab === 'settlement') {
+    return (
+      <Stack spacing={2}>
+        {tabBar}
+        <SettlementPanel />
+      </Stack>
+    );
+  }
+
+  if (error)
+    return (
+      <Stack spacing={2}>
+        {tabBar}
+        <Alert severity="error">{error}</Alert>
+      </Stack>
+    );
+
+  if (!data)
+    return (
+      <Stack spacing={2}>
+        {tabBar}
+        <LinearProgress />
+      </Stack>
+    );
 
   return (
     <Stack spacing={2.5}>
+      {tabBar}
       <Grid container spacing={2.5}>
         {kpis.map((k) => (
           <Grid item xs={6} md={3} key={k.key}>

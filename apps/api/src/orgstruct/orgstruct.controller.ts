@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import type { HttpResult } from '@/http/http-response';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { OrgstructService } from './orgstruct.service';
 
 @ApiTags('Orgstruct')

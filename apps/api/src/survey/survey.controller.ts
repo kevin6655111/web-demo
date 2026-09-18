@@ -5,12 +5,9 @@ import { Audit } from '@decorators/audit.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { AllowApiKey } from '@decorators/api-key.decorator';
-import { Idempotent } from '@decorators/idempotent.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { SurveyService } from './survey.service';
 import {
-  AppSurveyCaseDto,
   ExpertSurveyQueryDto,
   SurveyCaseQueryDto,
   SurveyCaseStatusDto,
@@ -201,69 +198,6 @@ export class SurveyController {
   @RequireAction(ACTION.SURVEY.UPDATE)
   async handleUpsertDetail(@Body() dto: UpsertSurveyDetailDto, @User() user: AuthUser): Promise<HttpResult> {
     return await this.surveyService.upsertDetail(dto, user.companyId);
-  }
-
-  // ═══ App 現場收案 ═══════════════════════════════════════════════
-
-  @Post('survey/app/case')
-  @ApiOperation({
-    summary: 'App 現場收案',
-    description: [
-      '現場人員在 App 上填的調查點：位置、車道、樁號、天氣、破壞類型與尺寸。',
-      '',
-      '**明細是選填的** —— 現場人員不一定知道這個點屬於委託單的第幾項。',
-      '沒帶就依路名比對，比不到就當成臨時加測。',
-      '',
-      '**重送安全**：`EXTERNAL_ID` 有唯一索引，現場網路不穩時 App 會重送。',
-      '重複遞送回傳既有案件並帶 `DUPLICATED: true`。',
-      '',
-      '破壞面積由長寬算出來而不是讓 App 傳：兩邊各算一次一定會有對不上的資料。',
-      '',
-      '此端點接受 `X-Api-Key`（App 後端用）。所需權限：`SURVEY.CREATE`'
-    ].join('\n')
-  })
-  @ApiHeader({
-    name: 'X-Api-Key',
-    required: false,
-    description: 'App 後端的金鑰；帶了就不需要 JWT',
-    schema: { type: 'string', example: 'rp_demo_device_key_0001' }
-  })
-  @ApiBody({
-    type: AppSurveyCaseDto,
-    examples: {
-      field: {
-        summary: '現場目視調查',
-        value: {
-          EXTERNAL_ID: 'SV-APP-20260901-0001',
-          ORDER_ID: 1,
-          LNG: 120.6478,
-          LAT: 24.1636,
-          METHOD: 'VISUAL',
-          ROAD_NAME: '中山路一段',
-          COUNTY: '示範市',
-          DISTRICT: '西屯區',
-          LANE: 2,
-          STATION_K: 3,
-          STATION_M: 250,
-          WEATHER: '晴',
-          DTYPE: 'Alligator_Cracking',
-          DEGREE: 'B',
-          DTYPE_LENGTH: 2.5,
-          DTYPE_WIDTH: 1.2,
-          PCI: 62.5,
-          FINDING: '龜裂範圍擴大，建議納入刨鋪'
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 201, description: '已建立；`data.DUPLICATED` 為 true 表示重複遞送' })
-  @ApiCommonErrors({ notFound: '找不到委託單或明細' })
-  @AllowApiKey()
-  @Idempotent(600)
-  @Audit({ action: 'SURVEY', keys: ['EXTERNAL_ID', 'ORDER_ID', 'METHOD'] })
-  @RequireAction(ACTION.SURVEY.CREATE)
-  async handleAppIntake(@Body() dto: AppSurveyCaseDto, @User() user: AuthUser): Promise<HttpResult> {
-    return await this.surveyService.appIntake(dto, user);
   }
 
   // ═══ 批次狀態與轉讓 ═════════════════════════════════════════════

@@ -32,7 +32,28 @@ export const fleetApi = {
   vehicles: (params) => api.get('/fleet/vehicle', params),
   upsertVehicle: (body) => api.post('/fleet/vehicle', body),
   track: (params) => api.get('/fleet/track', params),
-  trackStats: (params) => api.get('/fleet/track/stats', params)
+  trackStats: (params) => api.get('/fleet/track/stats', params),
+  /** 車機連線狀態；來源是 Redis 的連線工作階段，不是資料庫 */
+  comm: () => api.get('/fleet/comm'),
+  /** 對車機下指令，等車機回 ack；逾時會回錯而不是假裝送到了 */
+  command: (DEVICE_ID, ACTION, PAYLOAD) => api.post('/fleet/comm/command', { DEVICE_ID, ACTION, PAYLOAD }),
+  simulate: (body) => api.post('/fleet/comm/simulate', body),
+  stopSimulate: (deviceId) => api.del(`/fleet/comm/simulate/${deviceId}`)
+};
+
+/**
+ * 地理資料：行政區界線、建物、逆地理編碼。
+ *
+ * 這幾支和 `tilesApi` 的差別在**更新頻率**：界線與建物一年動一次，
+ * 案件每分鐘都在動。分開才能各自用合適的快取期限。
+ */
+export const geoApi = {
+  region: (params) => api.get('/geo/region', params),
+  locate: (LNG, LAT) => api.get('/geo/locate', { LNG, LAT }),
+  building: (params) => api.get('/geo/building', params),
+  buildingImpact: (LNG, LAT, RADIUS) => api.get('/geo/building-impact', { LNG, LAT, RADIUS }),
+  roadMeas: (params) => api.get('/geo/road-meas', params),
+  districtBounds: () => api.get('/geo/district-bounds')
 };
 
 export const roadEvalApi = {
@@ -171,7 +192,11 @@ export const companyApi = {
 };
 
 export const dashboardApi = {
-  overview: () => api.get('/dashboard/overview')
+  overview: () => api.get('/dashboard/overview'),
+  /** 每日上傳檢查：昨天該出車的車有沒有出、有沒有案件、照片缺不缺 */
+  dailyCheck: (params) => api.get('/dashboard/daily-check', params),
+  /** 結算：里程 × 案件，計價與請款的依據 */
+  settlement: (params) => api.get('/dashboard/settlement', params)
 };
 
 export const projectApi = {

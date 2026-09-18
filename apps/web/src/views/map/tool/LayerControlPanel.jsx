@@ -15,6 +15,7 @@ import { useMapLayers } from '../../../context/MapContext';
 
 /** 圖層分組的顯示順序與說明；沒列到的分組排在最後 */
 const GROUP_ORDER = [
+  { key: 'base', label: '底圖', hint: '行政區界線與建物量體，判讀時的參考框' },
   { key: 'case', label: '案件', hint: '破壞案件點位' },
   { key: 'track', label: '軌跡', hint: '車輛行駛路徑' },
   { key: 'fleet', label: '車隊', hint: '車輛即時位置' },

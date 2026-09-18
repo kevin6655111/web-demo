@@ -51,12 +51,22 @@ export const MODULE_DEF = [
         sortOrder: 0
       },
       {
+        key: 'VEHICLE_COMM',
+        name: '車機通訊',
+        icon: 'MdSettingsRemote',
+        component: 'QVehicleComm',
+        // 用 COMMAND 而不是 FLEET.READ：這一頁的用途是**下指令**，
+        // 只看得到連線狀態卻按不了任何按鈕的話，這個分頁沒有存在的意義
+        requiredAction: ACTION.FLEET.COMMAND,
+        sortOrder: 1
+      },
+      {
         key: 'PATROL_TRACK',
         name: '軌跡查詢',
         icon: 'FaRoad',
         component: 'QVehicleTrack',
         requiredAction: ACTION.TRACK.READ,
-        sortOrder: 1
+        sortOrder: 2
       },
       {
         key: 'PATROL_CRACK',
@@ -64,7 +74,7 @@ export const MODULE_DEF = [
         icon: 'GiEdgeCrack',
         component: 'QVehicleCrack',
         requiredAction: ACTION.CASE.READ,
-        sortOrder: 2
+        sortOrder: 3
       },
       {
         key: 'ROAD_EVAL',
@@ -72,7 +82,7 @@ export const MODULE_DEF = [
         icon: 'GiMountainRoad',
         component: 'QRoadEval',
         requiredAction: ACTION.ROAD_EVAL.READ,
-        sortOrder: 3
+        sortOrder: 4
       },
       {
         key: 'ROAD_SETTING',
@@ -80,7 +90,7 @@ export const MODULE_DEF = [
         icon: 'MdEditRoad',
         component: 'QRoadSetting',
         requiredAction: ACTION.ROAD_SETTING.READ,
-        sortOrder: 4
+        sortOrder: 5
       },
       {
         key: 'PATROL_POINT',
@@ -88,7 +98,7 @@ export const MODULE_DEF = [
         icon: 'MdMyLocation',
         component: 'QPatrolPoint',
         requiredAction: ACTION.ROAD_SETTING.READ,
-        sortOrder: 5
+        sortOrder: 6
       },
       {
         key: 'GIS',
@@ -96,7 +106,7 @@ export const MODULE_DEF = [
         icon: 'BsLayersFill',
         component: 'QGIS',
         requiredAction: ACTION.CASE.READ,
-        sortOrder: 6
+        sortOrder: 7
       }
     ]
   },

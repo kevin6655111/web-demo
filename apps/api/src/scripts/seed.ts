@@ -48,6 +48,9 @@ import { Vehicle, VEHICLE_TYPE } from '@/fleet/entities/vehicle.entity';
 import { VehicleTrack } from '@/fleet/entities/vehicle-track.entity';
 import { RoadSegment } from '@/road-eval/entities/road-segment.entity';
 import { PatrolPlan } from '@/patrol-setting/entities/patrol-plan.entity';
+import { GisRegion } from '@/geo/entities/gis-region.entity';
+import { RoadMeas } from '@/geo/entities/road-meas.entity';
+import { Building, BuildingUsage } from '@/geo/entities/building.entity';
 import { RoadLine } from '@/road-setting/entities/road-line.entity';
 import { RoadBlock } from '@/road-setting/entities/road-block.entity';
 import { PatrolPoint } from '@/road-setting/entities/patrol-point.entity';
@@ -127,6 +130,9 @@ function makeRandom(seed: number): () => number {
   const trackRepo = app.get<Repository<VehicleTrack>>(getRepositoryToken(VehicleTrack));
   const segmentRepo = app.get<Repository<RoadSegment>>(getRepositoryToken(RoadSegment));
   const planRepo = app.get<Repository<PatrolPlan>>(getRepositoryToken(PatrolPlan));
+  const gisRegionRepo = app.get<Repository<GisRegion>>(getRepositoryToken(GisRegion));
+  const roadMeasRepo = app.get<Repository<RoadMeas>>(getRepositoryToken(RoadMeas));
+  const buildingRepo = app.get<Repository<Building>>(getRepositoryToken(Building));
   const roadLineRepo = app.get<Repository<RoadLine>>(getRepositoryToken(RoadLine));
   const roadBlockRepo = app.get<Repository<RoadBlock>>(getRepositoryToken(RoadBlock));
   const patrolPointRepo = app.get<Repository<PatrolPoint>>(getRepositoryToken(PatrolPoint));
@@ -1490,6 +1496,198 @@ function makeRandom(seed: number): () => number {
     `UPDATE patrol_plans SET route_km = ROUND((ST_Length(route) / 1000)::numeric, 2) WHERE route_km = 0`
   );
 
+  // ─── 行政區界線與道路量測 ───────────────────────────────────────
+  //
+  // 正式環境的界線來自國土測繪中心的圖資(幾十 MB)；此處以固定亂數種子合成，
+  // 但保留**三層結構**：縣市 → 區 → 里。里這一層是關鍵 ——
+  // 派工是按里分派的，報表上業主要的也是里別統計。
+  //
+  // 界線用矩形而不是真實形狀：示範的是「有界線可以判斷點落在哪一區」，
+  // 而合成一個看起來像真的多邊形只是把假資料畫得更像真的。
+
+  let regionCount = 0;
+  if ((await gisRegionRepo.count()) === 0) {
+    const regions: GisRegion[] = [];
+
+    // 縣市：包住所有行政區
+    const countySpan = { minLng: baseLng - 0.09, minLat: baseLat - 0.07, maxLng: baseLng + 0.09, maxLat: baseLat + 0.07 };
+    const rect = (minLng: number, minLat: number, maxLng: number, maxLat: number) =>
+      ({
+        type: 'Polygon' as const,
+        coordinates: [
+          [
+            [minLng, minLat],
+            [maxLng, minLat],
+            [maxLng, maxLat],
+            [minLng, maxLat],
+            [minLng, minLat]
+          ] as [number, number][]
+        ]
+      });
+
+    regions.push(
+      gisRegionRepo.create({
+        countyCode: '66000',
+        county: '示範市',
+        level: 'COUNTY',
+        geom: rect(countySpan.minLng, countySpan.minLat, countySpan.maxLng, countySpan.maxLat)
+      })
+    );
+
+    // 區：把縣市切成格狀；里：再把每個區切成 2×2
+    const cols = Math.ceil(Math.sqrt(DISTRICTS.length));
+    const dw = (countySpan.maxLng - countySpan.minLng) / cols;
+    const dh = (countySpan.maxLat - countySpan.minLat) / Math.ceil(DISTRICTS.length / cols);
+
+    for (const [di, district] of DISTRICTS.entries()) {
+      const col = di % cols;
+      const row = Math.floor(di / cols);
+      const dMinLng = countySpan.minLng + col * dw;
+      const dMinLat = countySpan.minLat + row * dh;
+
+      regions.push(
+        gisRegionRepo.create({
+          countyCode: '66000',
+          county: '示範市',
+          districtCode: `660${String(di + 1).padStart(2, '0')}`,
+          district,
+          level: 'DISTRICT',
+          geom: rect(dMinLng, dMinLat, dMinLng + dw, dMinLat + dh)
+        })
+      );
+
+      for (let v = 0; v < 4; v += 1) {
+        const vc = v % 2;
+        const vr = Math.floor(v / 2);
+
+        regions.push(
+          gisRegionRepo.create({
+            countyCode: '66000',
+            county: '示範市',
+            districtCode: `660${String(di + 1).padStart(2, '0')}`,
+            district,
+            villageCode: `660${String(di + 1).padStart(2, '0')}${String(v + 1).padStart(3, '0')}`,
+            village: `${CAVLGES[(di * 4 + v) % CAVLGES.length].slice(0, 1)}${['東', '西', '南', '北'][v]}里`,
+            level: 'VILLAGE',
+            geom: rect(dMinLng + vc * (dw / 2), dMinLat + vr * (dh / 2), dMinLng + (vc + 1) * (dw / 2), dMinLat + (vr + 1) * (dh / 2))
+          })
+        );
+      }
+    }
+
+    await gisRegionRepo.save(regions, { chunk: 50 });
+    regionCount = regions.length;
+
+    // 面積由 PostGIS 算：合成資料也要讓「面積」這個欄位是真的算出來的
+    await gisRegionRepo.query(`UPDATE gis_regions SET area_km2 = ROUND((ST_Area(geom) / 1000000)::numeric, 4)`);
+  }
+
+  let roadMeasCount = 0;
+  if ((await roadMeasRepo.count()) === 0) {
+    const measures: RoadMeas[] = [];
+
+    for (const [i, road] of roads.entries()) {
+      for (const [di, district] of DISTRICTS.entries()) {
+        const laneCount = 2 + ((i + di) % 3);
+
+        measures.push(
+          roadMeasRepo.create({
+            county: '示範市',
+            district,
+            roadNum: `R${String(i + 1).padStart(2, '0')}${String(di + 1).padStart(2, '0')}`,
+            roadName: road,
+            lengthM: (600 + random() * 2400).toFixed(2),
+            // 路寬 = 車道數 × 3.5 公尺，這是計價面積的來源
+            widthM: (laneCount * 3.5).toFixed(2),
+            laneCount,
+            pavement: (['AC', 'AC', 'AC', 'CC'] as const)[(i + di) % 4]
+          })
+        );
+      }
+    }
+
+    await roadMeasRepo.save(measures, { chunk: 50 });
+    roadMeasCount = measures.length;
+  }
+
+  // ─── 建物 ───────────────────────────────────────────────────────
+  //
+  // 建物在這套系統裡不是背景裝飾，是**施工影響範圍的判斷依據**：
+  // 要封街刨鋪的路段旁邊是住宅還是廠區，決定施工時段與交維方式。
+  //
+  // 所以合成時刻意讓用途不是平均分布，而是照真實市區的樣子 ——
+  // 住宅佔多數、商業沿主要道路、學校與醫院各只有幾間。
+  // 平均分布的假資料會讓「周邊有沒有敏感設施」這個查詢永遠都答有。
+
+  let buildingCount = 0;
+  if ((await buildingRepo.count()) === 0) {
+    const buildings: Building[] = [];
+    // 權重反映市區實況：敏感設施稀少，才試得出「附近有學校」是不是例外情況
+    const USAGE_POOL = [
+      ...Array<BuildingUsage>(60).fill('RESIDENTIAL'),
+      ...Array<BuildingUsage>(22).fill('COMMERCIAL'),
+      ...Array<BuildingUsage>(10).fill('INDUSTRIAL'),
+      ...Array<BuildingUsage>(4).fill('PUBLIC'),
+      ...Array<BuildingUsage>(3).fill('SCHOOL'),
+      ...Array<BuildingUsage>(1).fill('HOSPITAL')
+    ];
+
+    for (const [di, district] of DISTRICTS.entries()) {
+      for (let i = 0; i < 120; i += 1) {
+        const usage = USAGE_POOL[Math.floor(random() * USAGE_POOL.length)];
+
+        // 樓層依用途：工業與學校是矮的大棟，商業是高的小棟，住宅居中
+        const levels =
+          usage === 'INDUSTRIAL' || usage === 'SCHOOL'
+            ? 1 + Math.floor(random() * 3)
+            : usage === 'COMMERCIAL'
+              ? 4 + Math.floor(random() * 14)
+              : 2 + Math.floor(random() * 10);
+
+        // 佔地反過來：矮的佔地大
+        const span = (usage === 'INDUSTRIAL' || usage === 'SCHOOL' ? 0.0008 : 0.00022) * (0.6 + random() * 0.8);
+
+        // 座落在該行政區自己的格子裡：`district` 欄位與實際位置對不上的話，
+        // 按行政區篩選會篩出一堆畫在別區的建物，而那種錯很晚才會被發現
+        const cLng = baseLng - 0.09 + (di % 3) * 0.06 + random() * (0.06 - span);
+        const cLat = baseLat - 0.07 + Math.floor(di / 3) * 0.07 + random() * (0.07 - span);
+
+        buildings.push(
+          buildingRepo.create({
+            osmId: `demo-b-${di}-${i}`,
+            county: '示範市',
+            district,
+            // 只有公共設施有名字：住宅棟名對判斷沒有幫助，而且那是個人資訊
+            name: ['SCHOOL', 'HOSPITAL', 'PUBLIC'].includes(usage)
+              ? `示範${district}${{ SCHOOL: '國小', HOSPITAL: '醫院', PUBLIC: '行政中心' }[usage as 'SCHOOL' | 'HOSPITAL' | 'PUBLIC']}`
+              : undefined,
+            usage,
+            levels,
+            // 樓高由樓層推估：沒有實測值時這是唯一能給的數字，3.2 m 是一般樓層高
+            heightM: (levels * 3.2).toFixed(2),
+            // 面積由經緯度跨距換算(此緯度下 1 度經度約 101 km、1 度緯度約 111 km)
+            areaM2: (span * 101000 * span * 111000).toFixed(2),
+            geom: {
+              type: 'Polygon',
+              coordinates: [
+                [
+                  [cLng, cLat],
+                  [cLng + span, cLat],
+                  [cLng + span, cLat + span],
+                  [cLng, cLat + span],
+                  [cLng, cLat]
+                ] as [number, number][]
+              ]
+            }
+          })
+        );
+      }
+    }
+
+    await buildingRepo.save(buildings, { chunk: 100 });
+    buildingCount = buildings.length;
+  }
+
   // ─── 道路線段、區塊與巡查點 ─────────────────────────────────────
   //
   // 正式環境的路網來自政府開放圖資；此處以固定亂數種子合成，
@@ -1773,6 +1971,7 @@ function makeRandom(seed: number): () => number {
   logger.log(`   新增案件 ${createdCases} 筆(含連續龜裂 ${alligatorCount} 筆)、巡查單 ${createdMaintenances} 張、派工單 ${createdOrders} 張`);
   logger.log(`   門牌 ${createdAddresses} 筆`);
   logger.log(`   道路線段 ${roadLineCount} 條／區塊 ${roadBlockCount} 個／巡查點 ${patrolPointCount} 個`);
+  logger.log(`   行政區界線 ${regionCount} 面(縣市/區/里 三層)／道路量測 ${roadMeasCount} 筆／建物 ${buildingCount} 棟`);
   logger.log(`   部門 ${departmentDefs.length} 個／車機金鑰 ${DEMO_API_KEY}`);
   logger.log(`   登入(廠商)：DEMO / admin / Demo1234`);
   logger.log(`   登入(平台)：ROOT / root / Demo1234    —— 開通廠商單位`);

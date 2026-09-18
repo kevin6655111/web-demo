@@ -1,16 +1,13 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { HttpResult } from '@/http/http-response';
 import { Audit } from '@decorators/audit.decorator';
-import { Idempotent } from '@decorators/idempotent.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { AllowApiKey } from '@decorators/api-key.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { CasePatrolService } from './case-patrol.service';
 import {
-  AddCaseDto,
   BatchUpdateStatusDto,
   CaseQueryDto,
   CaseStatsQueryDto,
@@ -19,48 +16,13 @@ import {
   UpdateCaseDto,
   UpdateCaseStatusDto
 } from './case-patrol.dto';
-import { ADD_CASE_EXAMPLES, UPDATE_STATUS_EXAMPLES } from './case-patrol.example';
-
-const IDEMPOTENCY_HEADER = {
-  name: 'Idempotency-Key',
-  required: false,
-  description: '去重鍵，建議直接用案件外部編號。同一把 key 重送會回放第一次的結果，不會重複建立案件',
-  schema: { type: 'string', example: 'TXG-20260828-000123' }
-} as const;
+import { UPDATE_STATUS_EXAMPLES } from './case-patrol.example';
 
 @ApiTags('Case-Patrol')
 @ApiBearerAuth(API_AUTH)
 @Controller()
 export class CasePatrolController {
   constructor(private readonly casePatrolService: CasePatrolService) {}
-
-  /** 新增巡查案件(車機/App 上傳) */
-  @Post('patrol/case')
-  @ApiOperation({
-    summary: '新增巡查案件',
-    description: [
-      '車機或手機 App 上傳偵測到的路面破壞。',
-      '',
-      '**重送安全**：上游常在收不到回應時自動重送，本端點有三層去重 ——',
-      '`Idempotency-Key` 表頭、佇列的工作編號、以及 `EXTERNAL_ID` 的資料庫唯一鍵。',
-      '重複遞送會回傳既有案件的 `ID` 並帶 `DUPLICATED: true`，HTTP 狀態仍是成功。',
-      '',
-      '**非同步後續**：路名由 worker 行程稍後補上，因此剛建立的案件 `ROAD_NAME` 會是 null。',
-      '',
-      '所需權限：`CASE.CREATE`'
-    ].join('\n')
-  })
-  @ApiHeader(IDEMPOTENCY_HEADER)
-  @ApiBody({ type: AddCaseDto, examples: ADD_CASE_EXAMPLES })
-  @ApiResponse({ status: 201, description: '建立成功。`data.DUPLICATED` 為 true 表示這是重複遞送，未新增資料' })
-  @ApiCommonErrors({ conflict: '相同 Idempotency-Key 用於不同內容，或前一筆相同請求仍在處理中' })
-  @AllowApiKey()
-  @Idempotent(600)
-  @Audit({ action: 'CASE', keys: ['EXTERNAL_ID', 'CRACK_TYPE', 'DETECTED_AT'] })
-  @RequireAction(ACTION.CASE.CREATE)
-  async handleAddCase(@Body() dto: AddCaseDto, @User() user: AuthUser): Promise<HttpResult> {
-    return await this.casePatrolService.addCase(dto, user);
-  }
 
   /** 查詢案件 */
   @Get('patrol/case')

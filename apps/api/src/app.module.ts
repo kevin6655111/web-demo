@@ -33,6 +33,9 @@ import { SurveyModule } from './survey/survey.module';
 import { SupportModule } from './support/support.module';
 import { SiftModule } from './sift/sift.module';
 import { CoreModule } from './core/core.module';
+import { IntegrationModule } from './integration/integration.module';
+import { VehicleCommModule } from './vehicle-comm/vehicle-comm.module';
+import { InitProcessModule } from './init-process/init-process.module';
 
 /**
  * api 行程：對外服務。
@@ -77,7 +80,10 @@ import { CoreModule } from './core/core.module';
     SurveyModule,
     SupportModule,
     SiftModule,
-    CoreModule
+    CoreModule,
+    IntegrationModule,
+    VehicleCommModule,
+    InitProcessModule
   ]
 })
 export class AppModule {}

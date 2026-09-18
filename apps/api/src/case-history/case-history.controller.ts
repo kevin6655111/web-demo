@@ -6,7 +6,7 @@ import { Audit } from '@decorators/audit.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { CaseHistoryService } from './case-history.service';
 import { AuditQueryDto, CompareVersionDto, RestoreCaseDto } from './case-history.dto';
 import type { CaseType } from './entities/case-history.entity';

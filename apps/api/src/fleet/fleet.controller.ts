@@ -6,10 +6,9 @@ import { Idempotent } from '@decorators/idempotent.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { AllowApiKey } from '@decorators/api-key.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { FleetService } from './fleet.service';
-import { AddTrackDto, TrackQueryDto, TrackStatsQueryDto, UpsertVehicleDto, VehicleQueryDto } from './fleet.dto';
+import { TrackQueryDto, TrackStatsQueryDto, UpsertVehicleDto, VehicleQueryDto } from './fleet.dto';
 
 @ApiTags('Fleet')
 @ApiBearerAuth(API_AUTH)
@@ -59,55 +58,6 @@ export class FleetController {
   @RequireAction(ACTION.FLEET.UPDATE)
   async handleUpsertVehicle(@Body() dto: UpsertVehicleDto, @User() user: AuthUser): Promise<HttpResult> {
     return await this.fleetService.upsertVehicle(dto, user.companyId);
-  }
-
-  /** 車機上傳軌跡點 */
-  @Post('fleet/track')
-  @ApiOperation({
-    summary: '上傳軌跡點',
-    description: [
-      '車機每數秒回報一次。這是全系統最高頻的寫入端點，因此刻意做得很薄 ——',
-      '只寫一筆點並更新車輛最後位置，統計與清理都交給排程。',
-      '',
-      '即時位置另外寫進 Redis(TTL 2 分鐘)，看板從那裡取，不掃描軌跡表。',
-      '',
-      '所需權限：`TRACK.CREATE`'
-    ].join('\n')
-  })
-  @ApiBody({
-    type: AddTrackDto,
-    examples: {
-      moving: {
-        summary: '行進中',
-        value: {
-          DEVICE_ID: 'DEV-0001',
-          LNG: 120.6478,
-          LAT: 24.1636,
-          RECORDED_AT: '2026-08-29T09:12:00+08:00',
-          SPEED_KPH: 32.5,
-          HEADING: 180,
-          GPS_HDOP: 0.8
-        }
-      },
-      tripStart: {
-        summary: '一趟行程的起點',
-        value: {
-          DEVICE_ID: 'DEV-0001',
-          LNG: 120.64,
-          LAT: 24.16,
-          RECORDED_AT: '2026-08-29T08:00:00+08:00',
-          IS_TRIP_START: true
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 201, description: '已接收' })
-  @ApiCommonErrors({ notFound: '找不到該車機識別碼對應的車輛' })
-  @Idempotent(120)
-  @AllowApiKey()
-  @RequireAction(ACTION.TRACK.CREATE)
-  async handleAddTrack(@Body() dto: AddTrackDto, @User() user: AuthUser): Promise<HttpResult> {
-    return await this.fleetService.addTrack(dto, user.companyId);
   }
 
   /** 查詢軌跡 */

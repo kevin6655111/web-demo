@@ -7,11 +7,10 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Transport } from '@nestjs/microservices';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from '@/app.module';
 import { EnvService } from '@/env/env.service';
-import { API_AUTH, API_AUTH_SCHEME, API_DESCRIPTION, keepDocumented } from '@/util/app-swagger';
+import { setupApiDocs } from '@/api-docs/api-docs.bootstrap';
 
 (async () => {
   const logger = new Logger('Server');
@@ -62,37 +61,13 @@ import { API_AUTH, API_AUTH_SCHEME, API_DESCRIPTION, keepDocumented } from '@/ut
     })
   );
 
-  // ───── Swagger ───────────────────────────────────────────────────
+  // ───── API 文件 ──────────────────────────────────────────────────
+  //
+  // 內部一份、對外一單位一份，全部需要金鑰。
+  // 分開的理由不是排版而是內容隔離：對外文件經過模組與 tag 兩層過濾，
+  // 對方就算直接抓 spec JSON 也只看得到自己那幾支。
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle(`${config.name} API`)
-    .setDescription(API_DESCRIPTION)
-    .setVersion('1.0.0')
-    .addBearerAuth(API_AUTH_SCHEME, API_AUTH)
-    .addTag('Auth', '登入、續期、臨時 Token、帳號管理')
-    .addTag('Role', '角色與權限')
-    .addTag('Core', '代碼表、系統公告、圖形驗證碼')
-    .addTag('Orgstruct', '使用者導覽選單(資料驅動的側邊欄)')
-    .addTag('Project', '標案')
-    .addTag('Case-Patrol', '巡查案件：新增、查詢、統計')
-    .addTag('Case-History', '案件版本歷程：快照、比較、還原')
-    .addTag('Sift', '二篩：判定、覆核、統計、薪資')
-    .addTag('Work-Order', '派工、施工回報、驗收')
-    .addTag('Fleet', '車隊與軌跡')
-    .addTag('Road-Eval', '路段評估')
-    .addTag('Patrol-Setting', '巡查計畫與覆蓋率')
-    .addTag('Road-Setting', '道路線段、區塊、巡查點與點位覆蓋率')
-    .addTag('Survey', '鋪面調查')
-    .addTag('Report', '報表產製')
-    .addTag('Dashboard', '儀表板')
-    .addTag('Geo', '行政區界線、地址自動完成')
-    .addTag('Realtime', '即時通訊(WebSocket 的 HTTP 補充介面)')
-    .addTag('Support', '客服對話')
-    .addTag('Task', '排程')
-    .build();
-
-  const document = keepDocumented(SwaggerModule.createDocument(app, swaggerConfig));
-  SwaggerModule.setup('api-docs', app, document, { jsonDocumentUrl: 'api-docs-json' });
+  setupApiDocs(app, envService);
 
   // ───── 微服務：訂閱事件，讓 WebSocket 收得到 ──────────────────────
 
@@ -113,5 +88,5 @@ import { API_AUTH, API_AUTH_SCHEME, API_DESCRIPTION, keepDocumented } from '@/ut
   await app.listen(httpPort, host);
 
   logger.log(`🚀 API   http://localhost:${httpPort}/api`);
-  logger.log(`📖 Docs  http://localhost:${httpPort}/api-docs`);
+  logger.log(`📖 內部文件  http://localhost:${httpPort}/internal-docs?k=<DOCS_INTERNAL_KEY>`);
 })();

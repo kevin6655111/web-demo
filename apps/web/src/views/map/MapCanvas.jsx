@@ -234,6 +234,90 @@ function LayerRenderer({ layer }) {
   }
 
   /**
+   * 建物量體。
+   *
+   * **沒有做真正的 3D 拉伸** —— 那需要 deck.gl 或 MapLibre 這類 WebGL 繪圖層，
+   * 而這張圖台是 Leaflet(SVG)。為了一個判讀用的輔助圖層換掉整個繪圖引擎、
+   * 或多背幾百 KB 的第二套引擎，都不划算。
+   *
+   * 改用顏色深淺表達樓高：低樓層淺、高樓層深。這在「旁邊是透天還是大樓」
+   * 這個實際要回答的問題上已經夠用，而且平面圖比斜視圖更容易對到路段位置。
+   * 真正的樓層數在 popup 裡。這是取捨，不是做不到。
+   */
+  if (layer.type === 'building') {
+    return layer.data.map((f) => {
+      const p = f.properties;
+      const color = layer.colorOf?.(p) ?? layer.color;
+
+      return (
+        <Polygon
+          key={p.id}
+          positions={f.geometry.coordinates.map((ring) => ring.map(([lng, lat]) => [lat, lng]))}
+          pathOptions={{
+            color,
+            fillColor: color,
+            // 樓越高越不透明：這是這個圖層唯一的「高度」訊號
+            fillOpacity: Math.min(0.25 + p.levels * 0.045, 0.85) * opacity,
+            weight: 0.6,
+            opacity: opacity * 0.7
+          }}
+        >
+          <Popup>
+            <Box sx={{ minWidth: 170 }}>
+              <Typography variant="subtitle2">{p.name ?? BUILDING_USAGE_LABEL[p.usage] ?? '建物'}</Typography>
+              <Typography variant="caption" component="div" color="text.secondary">
+                {p.district} · {BUILDING_USAGE_LABEL[p.usage] ?? p.usage}
+              </Typography>
+              <Typography variant="body2">
+                {p.levels} 層 · 約 {Math.round(p.heightM ?? 0)} m
+              </Typography>
+              {p.areaM2 !== undefined && <Typography variant="body2">佔地 {Math.round(p.areaM2)} m²</Typography>}
+            </Box>
+          </Popup>
+        </Polygon>
+      );
+    });
+  }
+
+  /**
+   * 行政區界線。
+   *
+   * 只畫邊界不填色(`fillOpacity` 極低)：它是**參考框**而不是資料 ——
+   * 填滿的話會把底下的案件與路段整個蓋掉，而使用者開這個圖層
+   * 是為了看「案件落在哪一里」，不是為了看區塊本身。
+   */
+  if (layer.type === 'region') {
+    return layer.data.map((f) => {
+      const p = f.properties;
+
+      return (
+        <Polygon
+          key={p.id}
+          positions={f.geometry.coordinates.map((ring) => ring.map(([lng, lat]) => [lat, lng]))}
+          pathOptions={{
+            color: layer.color,
+            fillColor: layer.color,
+            fillOpacity: 0.04 * opacity,
+            weight: 1.2,
+            dashArray: '6 4',
+            opacity
+          }}
+        >
+          <Popup>
+            <Box sx={{ minWidth: 150 }}>
+              <Typography variant="subtitle2">{p.label}</Typography>
+              <Typography variant="caption" component="div" color="text.secondary">
+                {[p.county, p.district, p.village].filter(Boolean).join(' / ')}
+              </Typography>
+              {p.areaKm2 !== undefined && <Typography variant="body2">面積 {p.areaKm2} km²</Typography>}
+            </Box>
+          </Popup>
+        </Polygon>
+      );
+    });
+  }
+
+  /**
    * GeoJSON 點圖層：巡查點。
    *
    * 與 `point` 型別的差別在資料形狀：這裡收的是 GeoJSON Feature，

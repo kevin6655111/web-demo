@@ -29,6 +29,9 @@ import { WorkOrderUser } from '@/work-order/entities/work-order-user.entity';
 import { CaseSequence } from '@/case-encode/entities/case-sequence.entity';
 import { MailJob } from '@/mail/entities/mail-job.entity';
 import { DeviceToken } from '@/fire-base/entities/device-token.entity';
+import { GisRegion } from '@/geo/entities/gis-region.entity';
+import { Building } from '@/geo/entities/building.entity';
+import { RoadMeas } from '@/geo/entities/road-meas.entity';
 import { AddressPoint } from '@/location/entities/address-point.entity';
 import { AddressGrid } from '@/location/entities/address-grid.entity';
 import { Maintenance } from '@/maintenance/entities/maintenance.entity';
@@ -93,6 +96,9 @@ export const ALL_ENTITIES = [
   CaseSequence,
   MailJob,
   DeviceToken,
+  GisRegion,
+  Building,
+  RoadMeas,
   AddressPoint,
   AddressGrid,
   Maintenance,

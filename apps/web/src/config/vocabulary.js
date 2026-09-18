@@ -1,4 +1,6 @@
 import {
+  BUILDING_USAGE_DEF,
+  COMMAND_ACTION_DEF,
   CASE_SOURCE_DEF,
   CASE_STATUS_DEF,
   CASE_EDITED_DEF,
@@ -10,6 +12,8 @@ import {
   MATERIAL_DEF,
   NEED_REPAIR_DEF,
   PROJECT_STATE_DEF,
+  STREAM_STATE_DEF,
+  REGION_LEVEL_DEF,
   SURVEY_METHOD_DEF,
   SURVEY_ORDER_STATE_DEF,
   SURVEY_STATUS_DEF,
@@ -132,3 +136,29 @@ export const SURVEY_STATUS_LABEL = labelsOf(SURVEY_STATUS_DEF);
 
 /** 標案狀態 */
 export const PROJECT_STATE_LABEL = labelsOf(PROJECT_STATE_DEF);
+
+// ═══ 地理資料 ═══════════════════════════════════════════════════
+
+/**
+ * 建物用途。
+ *
+ * 顏色上學校與醫療都是 `error` —— 不是因為它們危險，
+ * 而是因為它們是**施工排程必須另外處理**的那兩種，在圖上要一眼看得出來。
+ */
+export const BUILDING_USAGE_LABEL = labelsOf(BUILDING_USAGE_DEF);
+export const BUILDING_USAGE_COLOR = cssColorsByKey(BUILDING_USAGE_DEF);
+/** 該用途的施工限制；派工對話框拿它提醒現場 */
+export const BUILDING_USAGE_NOTE = Object.fromEntries(BUILDING_USAGE_DEF.map((d) => [d.key, d.note]));
+
+export const REGION_LEVEL_LABEL = labelsOf(REGION_LEVEL_DEF);
+
+// ═══ 車機通訊 ═══════════════════════════════════════════════════
+
+export const COMMAND_ACTION_LABEL = labelsOf(COMMAND_ACTION_DEF);
+/** 指令的說明，滑過按鈕會看到 —— 「SNAPSHOT」對督導不是可讀的字 */
+export const COMMAND_ACTION_HINT = Object.fromEntries(COMMAND_ACTION_DEF.map((d) => [d.key, d.hint]));
+/** 會中斷巡查的指令；送出前要再問一次 */
+export const COMMAND_ACTION_DANGER = COMMAND_ACTION_DEF.filter((d) => d.danger).map((d) => d.key);
+
+export const STREAM_STATE_LABEL = labelsOf(STREAM_STATE_DEF);
+export const STREAM_STATE_COLOR = cssColorsByKey(STREAM_STATE_DEF);

@@ -4,7 +4,7 @@ import type { HttpResult } from '@/http/http-response';
 import { Audit } from '@decorators/audit.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { MailService } from './mail.service';
 import { MailQueryDto, SendTestMailDto } from './mail.dto';
 

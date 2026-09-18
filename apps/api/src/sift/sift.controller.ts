@@ -5,7 +5,7 @@ import { Audit } from '@decorators/audit.decorator';
 import { User, type AuthUser } from '@decorators/user.decorator';
 import { ACTION, RequireAction } from '@decorators/permission.decorator';
 import { ApiCommonErrors } from '@decorators/api-error.decorator';
-import { API_AUTH } from '@/util/app-swagger';
+import { API_AUTH } from '@/api-docs/swagger.helper';
 import { SiftService } from './sift.service';
 import { JudgeCaseDto, ReviewCaseDto, SiftQueryDto, SiftSalaryQueryDto, SiftStatsQueryDto } from './sift.dto';
 

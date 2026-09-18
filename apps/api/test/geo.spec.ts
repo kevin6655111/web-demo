@@ -21,6 +21,9 @@ const noAddressFound = {
   })
 } as any;
 
+/** 這組測試不碰行政區圖資與道路量測，給空的 repository 替身 */
+const emptyRepo = { createQueryBuilder: () => ({}), count: async () => 0, query: async () => [], find: async () => [] } as any;
+
 /** 這組測試不碰快取路徑，給一個永遠未命中的替身即可 */
 const noCache = {
   remember: async (_key: string, _ttl: number, compute: () => Promise<unknown>) => ({
@@ -29,7 +32,7 @@ const noCache = {
   })
 } as any;
 describe('GeoService.reverseGeocode', () => {
-  const geoService = new GeoService({} as any, noAddressFound, noCache);
+  const geoService = new GeoService({} as any, emptyRepo, emptyRepo, emptyRepo, noAddressFound, noCache);
 
   it('同一座標永遠得到同一個路名', async () => {
     const a = await geoService.reverseGeocode(120.6478, 24.1636);
@@ -56,7 +59,7 @@ describe('GeoService.reverseGeocode', () => {
  * 陣列取值變成 undefined，路名就會長出「民生路undefined」。
  */
 describe('GeoService.reverseGeocode 邊界', () => {
-  const geoService = new GeoService({} as any, noAddressFound, noCache);
+  const geoService = new GeoService({} as any, emptyRepo, emptyRepo, emptyRepo, noAddressFound, noCache);
 
   it('大量座標都不會產生 undefined 的路名', async () => {
     const results = await Promise.all(
